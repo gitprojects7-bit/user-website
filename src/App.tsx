@@ -84,9 +84,12 @@ type Task = {
   assignedByInitials?: string;
   projectCode?: string;
   projectBadgeColor?: string;
+  created?: string;
   description?: string;
   acceptanceChecklist?: { id: string; text: string; completed: boolean }[];
   timeSpentSeconds?: number;
+  completionNotes?: string;
+  changesDescription?: string;
 };
 
 const menuItems: { label: PageName; icon: string }[] = [
@@ -105,22 +108,25 @@ const menuItems: { label: PageName; icon: string }[] = [
 const initialTasks: Task[] = [
   {
     id: "TASK-1043",
-    title: "Update customer onboarding flow",
-    project: "Client Portal",
-    projectCode: "C",
+    title: "Configure multi-currency billing",
+    project: "Billing Portal",
+    projectCode: "B",
     projectBadgeColor: "#d8f3ec",
     assignedBy: "Maya Chen",
     assignedByInitials: "MC",
+    created: "24 Oct 2026",
     due: "Today",
     priority: "High",
     status: "In progress",
     description:
-      "Redesign mobile responsive cards and simplify team invitation steps during onboarding.",
+      "Configure multi-currency billing and tax breakdown for overseas corporate clients.",
     acceptanceChecklist: [
       { id: "chk-1", text: "Responsive audit on mobile and tablet", completed: true },
       { id: "chk-2", text: "Email validation on multi-invite input", completed: false },
     ],
     timeSpentSeconds: 42 * 60 + 18,
+    completionNotes: "",
+    changesDescription: "",
   },
   {
     id: "TASK-1044",
@@ -130,6 +136,7 @@ const initialTasks: Task[] = [
     projectBadgeColor: "#dcf4e4",
     assignedBy: "Arun Patel",
     assignedByInitials: "AP",
+    created: "26 Oct 2026",
     due: "Tomorrow",
     priority: "Medium",
     status: "To do",
@@ -139,6 +146,8 @@ const initialTasks: Task[] = [
       { id: "chk-2", text: "Share slide deck draft with leads", completed: false },
     ],
     timeSpentSeconds: 0,
+    completionNotes: "",
+    changesDescription: "",
   },
   {
     id: "TASK-1045",
@@ -148,6 +157,7 @@ const initialTasks: Task[] = [
     projectBadgeColor: "#d7f3ea",
     assignedBy: "Priya Shah",
     assignedByInitials: "PS",
+    created: "25 Oct 2026",
     due: "26 Oct",
     priority: "Low",
     status: "Review",
@@ -157,24 +167,29 @@ const initialTasks: Task[] = [
       { id: "chk-2", text: "Verify database preference sync", completed: true },
     ],
     timeSpentSeconds: 15 * 60,
+    completionNotes: "",
+    changesDescription: "",
   },
   {
     id: "TASK-1046",
-    title: "Complete API documentation",
-    project: "Platform Upgrade",
-    projectCode: "P",
+    title: "Update customer onboarding flow",
+    project: "Client Portal",
+    projectCode: "C",
     projectBadgeColor: "#d8f2ee",
     assignedBy: "Maya Chen",
     assignedByInitials: "MC",
-    due: "27 Oct",
+    created: "27 Oct 2026",
+    due: "Today",
     priority: "High",
-    status: "To do",
-    description: "Document public webhook payloads and developer token authentication methods.",
+    status: "In progress",
+    description: "Redesign mobile responsive cards and simplify team invitation steps during onboarding.",
     acceptanceChecklist: [
-      { id: "chk-1", text: "OpenAPI 3.1 specification sync", completed: false },
-      { id: "chk-2", text: "cURL code snippets verified", completed: false },
+      { id: "chk-1", text: "Responsive audit on mobile and tablet", completed: false },
+      { id: "chk-2", text: "Email validation on multi-invite input", completed: false },
     ],
-    timeSpentSeconds: 0,
+    timeSpentSeconds: 46 * 60 + 16,
+    completionNotes: "",
+    changesDescription: "",
   },
   {
     id: "TASK-1049",
@@ -184,6 +199,7 @@ const initialTasks: Task[] = [
     projectBadgeColor: "#d7f3ea",
     assignedBy: "Arun Patel",
     assignedByInitials: "AP",
+    created: "28 Oct 2026",
     due: "29 Oct",
     priority: "Medium",
     status: "In progress",
@@ -193,6 +209,8 @@ const initialTasks: Task[] = [
       { id: "chk-2", text: "Ensure full responsiveness on tablet view", completed: false },
     ],
     timeSpentSeconds: 24 * 60,
+    completionNotes: "",
+    changesDescription: "",
   },
   {
     id: "TASK-1042",
@@ -202,6 +220,7 @@ const initialTasks: Task[] = [
     projectBadgeColor: "#d8f3ec",
     assignedBy: "Maya Chen",
     assignedByInitials: "MC",
+    created: "23 Oct 2026",
     due: "30 Oct",
     priority: "High",
     status: "In progress",
@@ -214,6 +233,8 @@ const initialTasks: Task[] = [
       { id: "chk-4", text: "Automated tests added", completed: false },
     ],
     timeSpentSeconds: 18 * 60 + 42,
+    completionNotes: "",
+    changesDescription: "",
   },
 ];
 
@@ -385,6 +406,13 @@ function App() {
   const [taskFilterPriority, setTaskFilterPriority] = useState<string>("all");
   const [taskSearchQuery, setTaskSearchQuery] = useState<string>("");
   const [selectedTaskId, setSelectedTaskId] = useState<string>("TASK-1042");
+  const [showTaskDetails, setShowTaskDetails] = useState<boolean>(false);
+  const [completionNotesVisible, setCompletionNotesVisible] = useState<boolean>(false);
+  const [completionNotesText, setCompletionNotesText] = useState<string>("");
+  const [changesDescriptionText, setChangesDescriptionText] = useState<string>("");
+  const [activeTaskTab, setActiveTaskTab] = useState<"Details" | "Comments" | "Attachments" | "Activity">("Details");
+
+  const [createTaskMode, setCreateTaskMode] = useState<"create" | "reassign">("create");
   const [taskTimerActive, setTaskTimerActive] = useState<boolean>(false);
 
   // Team Board state
@@ -419,6 +447,8 @@ function App() {
   const [newTaskDue, setNewTaskDue] = useState<string>("");
   const [newTaskDescription, setNewTaskDescription] = useState<string>("");
   const [newTaskChecklist, setNewTaskChecklist] = useState<string>("");
+  const [newTaskParent, setNewTaskParent] = useState<string>("");
+  const [newTaskTeam, setNewTaskTeam] = useState<string>("Team Alpha");
   const [newMemberName, setNewMemberName] = useState<string>("");
   const [newMemberEmail, setNewMemberEmail] = useState<string>("");
   const [newMemberRole, setNewMemberRole] = useState<"Team Lead" | "Member" | "Admin">("Member");
@@ -548,6 +578,10 @@ function App() {
   };
 
   const goBack = () => {
+    if (activePage === "My Tasks" && showTaskDetails) {
+      setShowTaskDetails(false);
+      return;
+    }
     if (pageHistory.length > 0) {
       const previous = pageHistory[pageHistory.length - 1];
       setPageHistory((history) => history.slice(0, -1));
@@ -587,6 +621,91 @@ function App() {
   const toggleTaskTimer = () => {
     setTaskTimerActive((prev) => !prev);
     setNotice(taskTimerActive ? "Task timer paused." : "Task timer started.");
+  };
+
+  const navigateToTaskDetails = (taskId: string) => {
+    const targetTask = tasks.find((t) => t.id === taskId) || tasks[0];
+    setSelectedTaskId(taskId);
+    setShowTaskDetails(true);
+    setActiveTaskTab("Details");
+    setCompletionNotesVisible(Boolean(targetTask?.completionNotes));
+    setCompletionNotesText(targetTask?.completionNotes || "");
+    setChangesDescriptionText(targetTask?.changesDescription || "");
+    navigateTo("My Tasks");
+  };
+
+  const handleMarkCompleteClick = () => {
+    if (!selectedTask) return;
+    if (selectedTask.status === "Completed") {
+      setTasks((previous) =>
+        previous.map((task) =>
+          task.id === selectedTask.id
+            ? { ...task, status: "In progress" }
+            : task
+        )
+      );
+      setBoardCards((previous) =>
+        previous.map((card) =>
+          card.title === selectedTask.title
+            ? { ...card, column: "In progress" }
+            : card
+        )
+      );
+      setCompletionNotesVisible(false);
+      setNotice(`Task ${selectedTask.id} moved back to In progress.`);
+    } else {
+      setCompletionNotesVisible(true);
+    }
+  };
+
+  const saveTaskCompletion = () => {
+    if (!selectedTask) return;
+    const notes = completionNotesText.trim();
+    setTasks((previous) =>
+      previous.map((task) =>
+        task.id === selectedTask.id
+          ? { ...task, status: "Completed", completionNotes: notes }
+          : task
+      )
+    );
+    setBoardCards((previous) =>
+      previous.map((card) =>
+        card.title === selectedTask.title
+          ? { ...card, column: "Completed" }
+          : card
+      )
+    );
+    setNotice(`Task ${selectedTask.id} marked complete.`);
+  };
+
+  const saveChangesDescription = () => {
+    if (!selectedTask) return;
+    const changes = changesDescriptionText.trim();
+    setTasks((previous) =>
+      previous.map((task) =>
+        task.id === selectedTask.id
+          ? { ...task, changesDescription: changes }
+          : task
+      )
+    );
+    setNotice("Changes description saved.");
+  };
+
+  const openTaskEditor = (mode: "create" | "reassign", task?: Task) => {
+    setCreateTaskMode(mode);
+    setShowTaskDetails(false);
+    setNewTaskTitle(task?.title ?? "");
+    setNewTaskProject(task?.project ?? "Billing Portal");
+    setNewTaskAssignee(task?.assignedBy ?? teamMembers[0]?.name ?? "");
+    setNewTaskPriority(task?.priority ?? "Medium");
+    setNewTaskDue(task?.due ?? "");
+    setNewTaskDescription(task?.description ?? "");
+    setNewTaskChecklist(
+      task?.acceptanceChecklist?.map((item) => item.text).join("\n") ?? ""
+    );
+    setNewTaskParent("");
+    setNewTaskTeam("Team Alpha");
+    navigateTo("Create Task");
   };
 
   const markTaskCompleted = () => {
@@ -651,10 +770,28 @@ function App() {
     event.preventDefault();
     const title = newTaskTitle.trim();
     if (!title) return;
+
     const assignee = newTaskAssignee;
     const assigneeInitials = assignee.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+    const checklist = newTaskChecklist.split("\n").map((text, index) => ({
+      id: `task-${Date.now()}-${index}`,
+      text: text.trim(),
+      completed: false,
+    })).filter((item) => item.text);
+
+    if (createTaskMode === "reassign") {
+      setTasks((previous) => previous.map((task) => task.id === selectedTaskId
+        ? { ...task, title, project: newTaskProject, due: newTaskDue || task.due, priority: newTaskPriority, assignedBy: assignee, assignedByInitials: assigneeInitials, description: newTaskDescription.trim(), acceptanceChecklist: checklist }
+        : task));
+      setNotice(`Task reassigned to ${assignee}.`);
+      setShowTaskDetails(true);
+      navigateTo("My Tasks");
+      return;
+    }
+
+    const taskId = `TASK-${1050 + tasks.length}`;
     const newTask: Task = {
-      id: `TASK-${1050 + tasks.length}`,
+      id: taskId,
       title,
       project: newTaskProject,
       due: newTaskDue || "Tomorrow",
@@ -665,14 +802,18 @@ function App() {
       projectCode: newTaskProject.charAt(0).toUpperCase(),
       projectBadgeColor: "#dcf2ec",
       description: newTaskDescription.trim(),
-      acceptanceChecklist: newTaskChecklist.split("\n").map((text, index) => ({ id: `new-${Date.now()}-${index}`, text: text.trim(), completed: false })).filter((item) => item.text),
+      acceptanceChecklist: checklist,
       timeSpentSeconds: 0,
     };
+
     setTasks((previous) => [newTask, ...previous]);
     setBoardCards((previous) => [{ id: `tb-${Date.now()}`, title, project: newTaskProject, assignee, assigneeInitials, due: newTask.due, priority: newTaskPriority, column: "To do" }, ...previous]);
-    setSelectedTaskId(newTask.id);
-    setNewTaskTitle(""); setNewTaskDescription(""); setNewTaskChecklist(""); setNewTaskDue(""); setNewTaskPriority("Medium");
-    setShowCreateTaskModal(false);
+    setSelectedTaskId(taskId);
+    setShowTaskDetails(false);
+    setNewTaskTitle("");
+    setNewTaskDescription("");
+    setNewTaskChecklist("");
+    setNewTaskDue("");
     setNotice(`Task “${title}” created and assigned to ${assignee}.`);
     navigateTo("My Tasks");
   };
@@ -834,7 +975,23 @@ return (
               className={`nav-item ${
                 activePage === item.label ? "selected" : ""
               }`}
-              onClick={() => navigateTo(item.label)}
+              onClick={() => {
+                if (item.label === "Create Task") {
+                  setCreateTaskMode("create");
+                  setShowTaskDetails(false);
+                  setNewTaskTitle("");
+                  setNewTaskProject("Billing Portal");
+                  setNewTaskAssignee(teamMembers[0]?.name ?? "");
+                  setNewTaskPriority("Medium");
+                  setNewTaskDue("");
+                  setNewTaskDescription("");
+                  setNewTaskChecklist("");
+                  navigateTo("Create Task");
+                  return;
+                }
+                if (item.label === "My Tasks") setShowTaskDetails(false);
+                navigateTo(item.label);
+              }}
               title={item.label}
             >
               <span className="nav-icon">{item.icon}</span>
@@ -882,7 +1039,7 @@ return (
                     : activePage === "Team Board"
                       ? "Team board"
                       : activePage === "Create Task"
-                        ? `${selectedTask?.id || "TASK-1042"} · ${selectedTask?.project || "BILLING PORTAL"}`
+                        ? (createTaskMode === "reassign" ? "Reassign task" : "Create task")
                         : activePage === "Team Chat"
                           ? "Team chat"
                           : activePage === "Direct Messages"
@@ -1185,8 +1342,7 @@ return (
                           key={task.id || task.title}
                           className="clickable-task-row"
                           onClick={() => {
-                            setSelectedTaskId(task.id);
-                            navigateTo("Create Task");
+                            navigateToTaskDetails(task.id);
                           }}
                           title="Click to view task details & controls"
                         >
@@ -1228,7 +1384,7 @@ return (
                 <span>PERSONAL DASHBOARD</span>
               </footer>
             </>
-          ) : activePage === "My Tasks" ? (
+          ) : activePage === "My Tasks" && !showTaskDetails ? (
             <section className="my-tasks-page">
               {/* Header block strictly matching reference screenshot */}
               <div className="tasks-page-header">
@@ -1407,8 +1563,7 @@ return (
                                 key={task.id}
                                 className="screenshot-task-row"
                                 onClick={() => {
-                                  setSelectedTaskId(task.id);
-                                  navigateTo("Create Task");
+                                  navigateToTaskDetails(task.id);
                                 }}
                                 title="Click to view and edit task"
                               >
@@ -1535,8 +1690,8 @@ return (
                       <div className="kanban-cards">
                         {columnCards.length ? columnCards.map((card) => (
                           <article className="kanban-card" key={card.id}>
-                            <div className="kanban-card-topline"><span className={`priority-dot priority-${card.priority.toLowerCase()}`} /> <span>{card.priority} priority</span><button type="button" aria-label={`Open ${card.title}`} onClick={() => { const match = tasks.find((task) => task.title.toLowerCase().includes(card.title.toLowerCase().split(" ")[0])); if (match) { setSelectedTaskId(match.id); navigateTo("Create Task"); } else setNotice(`${card.title} selected.`); }}>•••</button></div>
-                            <button type="button" className="kanban-card-title" onClick={() => { const match = tasks.find((task) => task.title.toLowerCase().includes(card.title.toLowerCase().split(" ")[0])); if (match) { setSelectedTaskId(match.id); navigateTo("Create Task"); } else setNotice(`${card.title} selected.`); }}>{card.title}</button>
+                            <div className="kanban-card-topline"><span className={`priority-dot priority-${card.priority.toLowerCase()}`} /> <span>{card.priority} priority</span><button type="button" aria-label={`Open ${card.title}`} onClick={() => { const match = tasks.find((task) => task.title.toLowerCase().includes(card.title.toLowerCase().split(" ")[0])); if (match) { navigateToTaskDetails(match.id); } else setNotice(`${card.title} selected.`); }}>•••</button></div>
+                            <button type="button" className="kanban-card-title" onClick={() => { const match = tasks.find((task) => task.title.toLowerCase().includes(card.title.toLowerCase().split(" ")[0])); if (match) { navigateToTaskDetails(match.id); } else setNotice(`${card.title} selected.`); }}>{card.title}</button>
                             <span className="kanban-project-label">{card.project}</span>
                             <div className="kanban-card-footer"><div className="kanban-assignee"><span className="assignee-avatar-badge">{card.assigneeInitials}</span><span>{card.assignee}</span></div><span className={`kanban-due ${card.due === "Today" ? "due-today-accent" : ""}`}>{card.due}</span></div>
                             <div className="kanban-move-row"><label htmlFor={`move-${card.id}`}>Move to</label><select id={`move-${card.id}`} value={card.column} onChange={(event) => setBoardCards((previous) => previous.map((item) => item.id === card.id ? { ...item, column: event.target.value as BoardCard["column"] } : item))}><option>To do</option><option>In progress</option><option>Review</option><option>Completed</option></select></div>
@@ -1630,134 +1785,477 @@ return (
               <div className="settings-card"><div className="settings-card-heading"><div><h3>Workspace access</h3><p>Role permissions currently apply to the Team Alpha workspace.</p></div></div><div className="settings-access-row"><span className="permission-lock">✓</span><span>Only team leads and admins can add or change member roles.</span><button type="button" className="table-action-link" onClick={() => navigateTo("Team Members")}>Manage members</button></div></div>
               <footer className="screen-indicator-footer"><span>TEAM WORKSPACE WEB APP · PREFERENCES</span><span>WORKSPACE SETTINGS</span></footer>
             </section>
-          ) : activePage === "Create Task" ? (
+          ) : activePage === "My Tasks" && showTaskDetails ? (
             <section className="task-detail-page">
+              <button
+                type="button"
+                className="task-back-pill"
+                onClick={() => setShowTaskDetails(false)}
+              >
+                ← Back to My Tasks
+              </button>
+
               <div className="task-detail-layout">
-                {/* Left Card: Task Core Information */}
-                <article className="task-detail-main-card">
-                  <div className="task-meta-header">
-                    <span className="task-code-project">
-                      {selectedTask.id} · {selectedTask.project}
-                    </span>
-                  </div>
+                {/* Left Column: Equal height container */}
+                <div className="task-detail-left-col">
+                  {/* Top Card: Task Core Info */}
+                  <article className="task-detail-main-card">
+                    <div className="task-meta-header">
+                      <span className="task-code-project">
+                        {selectedTask.id} · {selectedTask.project.toUpperCase()}
+                      </span>
+                    </div>
 
-                  <h2 className="task-detail-title">{selectedTask.title}</h2>
+                    <h1 className="task-detail-title">{selectedTask.title}</h1>
 
-                  <div className="task-badges-row">
-                    <span
-                      className={`status-pill ${selectedTask.status.toLowerCase().replace(" ", "-")}`}
-                    >
-                      {selectedTask.status.toUpperCase()}
-                    </span>
-                    <span className="task-meta-divider"></span>
-                    <span className="task-meta-text">
-                      Priority: <strong>{selectedTask.priority}</strong>
-                    </span>
-                    <span className="task-meta-dot">•</span>
-                    <span className="task-meta-text">
-                      Due: <strong>{selectedTask.due}</strong>
-                    </span>
-                  </div>
+                    <div className="task-badges-row">
+                      <span
+                        className={`task-status-badge status-${selectedTask.status
+                          .toLowerCase()
+                          .replace(/\s+/g, "-")}`}
+                      >
+                        {selectedTask.status.toUpperCase()}
+                      </span>
+                      <span className="task-meta-item">
+                        Priority:{" "}
+                        <strong
+                          className={`priority-text priority-${selectedTask.priority.toLowerCase()}`}
+                        >
+                          {selectedTask.priority}
+                        </strong>
+                      </span>
+                      <span className="task-meta-item">
+                        <span className="meta-icon">📅</span> Due:{" "}
+                        <strong>{selectedTask.due}</strong>
+                      </span>
 
-                  <div className="task-status-flow" aria-label="Task status flow">
-                    {(["To do", "In progress", "Review", "Completed"] as const).map((status) => <button type="button" key={status} className={`task-flow-step ${selectedTask.status === status ? "current" : ""} ${["To do", "In progress", "Review", "Completed"].indexOf(status) < ["To do", "In progress", "Review", "Completed"].indexOf(selectedTask.status) ? "passed" : ""}`} onClick={() => { setTasks((previous) => previous.map((task) => task.id === selectedTask.id ? { ...task, status } : task)); setBoardCards((previous) => previous.map((card) => card.title === selectedTask.title ? { ...card, column: status } : card)); }}>{status}</button>)}
-                  </div>
-                  {taskTimerActive && <div className="active-task-banner"><span className="board-live-dot" /><div><strong>Timer running</strong><small>Time is tracked until you explicitly stop and save it.</small></div><span className="active-task-elapsed">{formatTime(selectedTask.timeSpentSeconds || 0)}</span><button type="button" onClick={() => setTaskActionModal("stop-timer")}>Stop timer & save</button></div>}
-                  <div className="task-section-block">
-                    <h4 className="task-block-heading">DESCRIPTION</h4>
-                    <p className="task-description-body">
-                      {selectedTask.description ||
-                        "No detailed description provided for this task yet."}
-                    </p>
-                  </div>
+                    </div>
 
-                  <div className="task-section-block">
-                    <h4 className="task-block-heading">ACCEPTANCE CHECKLIST</h4>
-                    <div className="checklist-container">
-                      {selectedTask.acceptanceChecklist &&
-                      selectedTask.acceptanceChecklist.length > 0 ? (
-                        selectedTask.acceptanceChecklist.map((item) => (
-                          <label key={item.id} className="checklist-item">
-                            <input
-                              type="checkbox"
-                              checked={item.completed}
-                              onChange={() => toggleChecklistItem(item.id)}
-                            />
-                            <span className="checklist-custom-box">
-                              {item.completed && "✓"}
-                            </span>
-                            <span
-                              className={`checklist-label-text ${
-                                item.completed ? "completed" : ""
-                              }`}
-                            >
-                              {item.text}
-                            </span>
-                          </label>
-                        ))
-                      ) : (
-                        <p className="empty-checklist">No checklist items defined.</p>
+                    {/* 3-Column Summary Strip */}
+                    <div className="task-summary-strip">
+                      <div className="summary-col">
+                        <div className="summary-avatar">
+                          {selectedTask.assignedByInitials || "MC"}
+                        </div>
+                        <div className="summary-info">
+                          <span className="summary-label">Assigned by</span>
+                          <strong className="summary-value">
+                            {selectedTask.assignedBy || "Maya Chen"}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div className="summary-divider" />
+
+                      <div className="summary-col">
+                        <div className="summary-avatar project-avatar">
+                          {selectedTask.projectCode || selectedTask.project.charAt(0)}
+                        </div>
+                        <div className="summary-info">
+                          <span className="summary-label">Project</span>
+                          <strong className="summary-value">
+                            {selectedTask.project}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div className="summary-divider" />
+
+                      <div className="summary-col">
+                        <div className="summary-avatar icon-avatar">📅</div>
+                        <div className="summary-info">
+                          <span className="summary-label">Created</span>
+                          <strong className="summary-value">
+                            {selectedTask.created || "27 Oct 2026"}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tabs Bar */}
+                    <div className="task-tabs-bar">
+                      {(["Details", "Comments", "Attachments", "Activity"] as const).map(
+                        (tab) => (
+                          <button
+                            key={tab}
+                            type="button"
+                            className={`task-tab-btn ${
+                              activeTaskTab === tab ? "active" : ""
+                            }`}
+                            onClick={() => setActiveTaskTab(tab)}
+                          >
+                            {tab}
+                          </button>
+                        )
                       )}
                     </div>
-                  </div>
-                </article>
 
-                {/* Right Card: Task Controls & Timer */}
-                <aside className="task-controls-card">
-                  <h3 className="task-controls-heading">TASK CONTROLS</h3>
+                    {/* Tab Content */}
+                    {activeTaskTab === "Details" && (
+                      <div className="task-tab-body">
+                        <div className="task-section-block">
+                          <h3 className="task-section-title">Description</h3>
+                          <p className="task-description-p">
+                            {selectedTask.description ||
+                              "No description provided for this task yet."}
+                          </p>
+                        </div>
 
-                  <div className="time-tracking-section">
-                    <span className="time-tracking-label">Time tracking</span>
-                    <div className="task-timer-display">
-                      {formatTime(selectedTask.timeSpentSeconds || 0)}
+                        <div className="task-section-block">
+                          <h3 className="task-section-title">Acceptance checklist</h3>
+                          <div className="checklist-container">
+                            {(selectedTask.acceptanceChecklist || []).map((item) => (
+                              <label key={item.id} className="checklist-item-row">
+                                <input
+                                  type="checkbox"
+                                  checked={item.completed}
+                                  onChange={() => toggleChecklistItem(item.id)}
+                                />
+                                <span className="checklist-box">
+                                  {item.completed ? "✓" : ""}
+                                </span>
+                                <span
+                                  className={`checklist-text ${
+                                    item.completed ? "completed" : ""
+                                  }`}
+                                >
+                                  {item.text}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Interactive Task Action Row */}
+                        <div className="task-actions-row">
+                          <button
+                            type="button"
+                            className={`btn-mark-complete-main ${
+                              selectedTask.status === "Completed" ? "is-completed" : ""
+                            }`}
+                            onClick={handleMarkCompleteClick}
+                          >
+                            ✓{" "}
+                            {selectedTask.status === "Completed"
+                              ? "Task completed (Click to re-open)"
+                              : "Mark complete"}
+                          </button>
+                        </div>
+
+                        {/* Completion Notes Section */}
+                        {completionNotesVisible && (
+                          <div className="completion-notes-container">
+                            <label
+                              htmlFor="completion-notes-input"
+                              className="task-section-title"
+                            >
+                              Completion notes
+                            </label>
+                            <textarea
+                              id="completion-notes-input"
+                              rows={2}
+                              placeholder="Add completion notes..."
+                              value={completionNotesText}
+                              onChange={(e) => setCompletionNotesText(e.target.value)}
+                            />
+                            <div className="notes-save-actions">
+                              <button
+                                type="button"
+                                className="btn-green-action"
+                                onClick={saveTaskCompletion}
+                              >
+                                Save completion
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        
+                      </div>
+                    )}
+
+                    {activeTaskTab !== "Details" && (
+                      <div className="task-tab-placeholder">
+                        <p>No {activeTaskTab.toLowerCase()} recorded for this task yet.</p>
+                      </div>
+                    )}
+                  </article>
+
+                  {/* Bottom Card: Changes Description */}
+                  <article className="task-changes-card">
+                    <h3 className="task-section-title">Changes description</h3>
+                    <textarea
+                      rows={2}
+                      placeholder="Describe the changes made..."
+                      value={changesDescriptionText}
+                      onChange={(e) => setChangesDescriptionText(e.target.value)}
+                    />
+                    <div className="changes-save-actions">
+                      <button
+                        type="button"
+                        className="btn-green-action"
+                        onClick={saveChangesDescription}
+                      >
+                        Save changes
+                      </button>
+                    </div>
+                  </article>
+                </div>
+
+                {/* Right Column: Equalized Matching Cards */}
+                <div className="task-detail-right-col">
+                  {/* Top Right Card: Time Tracking & Task Controls */}
+                  <aside className="task-controls-card">
+                    <div className="task-controls-header">
+                      <span className="controls-icon">⚙</span>
+                      <h3>Task Controls</h3>
                     </div>
 
-                    <button
-                      type="button"
-                      className={`btn-task-control primary ${
-                        taskTimerActive ? "active" : ""
-                      }`}
-                      onClick={toggleTaskTimer}
-                    >
-                      {taskTimerActive ? "Pause task" : "Start task"}
-                    </button>
+                    <div className="time-tracking-section">
+                      <span className="time-tracking-label">Time tracking</span>
+                      <div className="time-tracking-clock">
+                        {formatTime(selectedTask.timeSpentSeconds || 0)}
+                      </div>
 
-                    <button
-                      type="button"
-                      className="btn-task-control secondary"
-                      onClick={() => setTaskActionModal("complete")}
-                    >
-                      {selectedTask.status === "Completed"
-                        ? "Mark incomplete"
-                        : "Mark completed"}
-                    </button>
+                      <button
+                        type="button"
+                        className="btn-controls-pause"
+                        onClick={toggleTaskTimer}
+                      >
+                        {taskTimerActive ? "⏸ Pause task" : "▶ Start task"}
+                      </button>
 
-                    <button
-                      type="button"
-                      className="btn-task-control secondary"
-                      onClick={() => setTaskActionModal("reassign")}
-                    >
-                      Reassign task
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        className="btn-controls-reassign"
+                        onClick={() => openTaskEditor("reassign", selectedTask)}
+                      >
+                        Reassign task
+                      </button>
+                    </div>
 
-                  <div className="timer-rule-card"><strong>Timer rule</strong><p>The timer keeps running until you explicitly stop it. Leaving this page or signing out does not silently stop the timer.</p></div>
-                  <div className="task-assigned-info">
-                    <span className="assigned-label">Assigned to</span>
-                    <strong className="assigned-name">
-                      {selectedTask.assignedBy || "Workspace Lead"}
-                    </strong>
-                    <small className="assigned-footnote">
-                      Time tracking remains active until you stop and save it.
-                    </small>
-                  </div>
-                </aside>
+                    <div className="timer-rule-box">
+                      <div className="timer-rule-title">
+                        <span className="timer-icon">🕒</span>
+                        <strong>Timer rule</strong>
+                      </div>
+                      <p>
+                        The timer keeps running until explicitly stopped.
+                        Leaving or signing out does not stop it.
+                      </p>
+                    </div>
+                  </aside>
+
+                  {/* Bottom Right Card: Task Properties & Review Alignment */}
+                  <aside className="task-properties-card">
+                    <div className="task-properties-header">
+                      <span className="properties-icon">📋</span>
+                      <h3>Task Properties</h3>
+                    </div>
+
+                    <div className="controls-meta-list">
+                      <div className="controls-meta-row assigned-to-row">
+                        <span className="controls-meta-label">Assigned to</span>
+                        <div className="controls-user-info">
+                          <div className="controls-avatar">
+                            {selectedTask.assignedByInitials || "MC"}
+                          </div>
+                          <div className="controls-user-text">
+                            <strong>{selectedTask.assignedBy || "Maya Chen"}</strong>
+                            <small>Team Member</small>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="controls-meta-row project-row">
+                        <span className="controls-meta-label">Project</span>
+                        <div className="controls-user-info">
+                          <div className="controls-avatar project-avatar">
+                            {selectedTask.projectCode || selectedTask.project.charAt(0)}
+                          </div>
+                          <strong className="controls-project-name">
+                            {selectedTask.project}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div className="controls-meta-row flex-between">
+                        <span className="controls-meta-label-icon">
+                          <span className="meta-row-icon">⚑</span> Priority
+                        </span>
+                        <span
+                          className={`priority-pill priority-${selectedTask.priority.toLowerCase()}`}
+                        >
+                          {selectedTask.priority}
+                        </span>
+                      </div>
+
+                      <div className="controls-meta-row flex-between">
+                        <span className="controls-meta-label-icon">
+                          <span className="meta-row-icon">📅</span> Due date
+                        </span>
+                        <span className="controls-meta-val">{selectedTask.due}</span>
+                      </div>
+
+                      <div className="controls-meta-row flex-between">
+                        <span className="controls-meta-label-icon">
+                          <span className="meta-row-icon">🕒</span> Status
+                        </span>
+                        <span
+                          className={`status-pill status-${selectedTask.status
+                            .toLowerCase()
+                            .replace(/\s+/g, "-")}`}
+                        >
+                          {selectedTask.status}
+                        </span>
+                      </div>
+
+                    </div>
+                  </aside>
+                </div>
               </div>
 
               <footer className="screen-indicator-footer">
-                <span>TEAM WORKSPACE WEB APP · TASK WORKFLOW · Live Task Record</span><span>SCREEN 03 / 11</span>
+                <span>TEAM WORKSPACE WEB APP · TASK WORKFLOW · Live Task Record</span>
+                <span>SCREEN 03 / 11</span>
               </footer>
+            </section>
+          ) : activePage === "Create Task" ? (
+            <section className="task-editor-page">
+              <form className="task-editor-form" onSubmit={createTaskFromForm}>
+                <section className="task-editor-card">
+                  <h2 className="editor-card-title">TASK DETAILS</h2>
 
+                  <label className="editor-field-label">
+                    <span>Task title</span>
+                    <input
+                      type="text"
+                      value={newTaskTitle}
+                      onChange={(event) => setNewTaskTitle(event.target.value)}
+                      placeholder="Prepare invoice export API"
+                      required
+                    />
+                  </label>
+
+                  <label className="editor-field-label">
+                    <span>Project</span>
+                    <select
+                      value={newTaskProject}
+                      onChange={(event) => setNewTaskProject(event.target.value)}
+                    >
+                      <option>Billing Portal</option>
+                      <option>Client Portal</option>
+                      <option>Invoice module</option>
+                      <option>Northstar portal</option>
+                      <option>Marketing site</option>
+                      <option>Platform Upgrade</option>
+                      <option>Team Workspace</option>
+                    </select>
+                  </label>
+
+                  <label className="editor-field-label">
+                    <span>Description</span>
+                    <textarea
+                      rows={3}
+                      value={newTaskDescription}
+                      onChange={(event) => setNewTaskDescription(event.target.value)}
+                      placeholder="Describe the task and expected outcome"
+                    />
+                  </label>
+
+                  <div className="task-editor-fields-row">
+                    <label className="editor-field-label">
+                      <span>Priority</span>
+                      <select
+                        value={newTaskPriority}
+                        onChange={(event) =>
+                          setNewTaskPriority(event.target.value as typeof newTaskPriority)
+                        }
+                      >
+                        <option>High</option>
+                        <option>Medium</option>
+                        <option>Low</option>
+                      </select>
+                    </label>
+
+                    <label className="editor-field-label">
+                      <span>Due date</span>
+                      <input
+                        type="date"
+                        value={newTaskDue}
+                        onChange={(event) => setNewTaskDue(event.target.value)}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="editor-field-label">
+                    <span>Parent task</span>
+                    <select
+                      value={newTaskParent}
+                      onChange={(event) => setNewTaskParent(event.target.value)}
+                    >
+                      <option value="">No parent task</option>
+                      {tasks
+                        .filter((task) => task.id !== selectedTaskId)
+                        .map((task) => (
+                          <option key={task.id} value={task.id}>
+                            {task.title}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                </section>
+
+                <section className="task-editor-card">
+                  <h2 className="editor-card-title">ASSIGNMENT</h2>
+
+                  <label className="editor-field-label">
+                    <span>Assign to</span>
+                    <select
+                      value={newTaskAssignee}
+                      onChange={(event) => setNewTaskAssignee(event.target.value)}
+                      required
+                    >
+                      {teamMembers.map((member) => (
+                        <option key={member.id} value={member.name}>
+                          {member.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="editor-field-label">
+                    <span>Team / visibility</span>
+                    <select
+                      value={newTaskTeam}
+                      onChange={(event) => setNewTaskTeam(event.target.value)}
+                    >
+                      <option>Team Alpha</option>
+                      <option>Team Beta</option>
+                      <option>Private</option>
+                    </select>
+                  </label>
+
+                  <label className="editor-field-label">
+                    <span>Checklist</span>
+                    <textarea
+                      rows={4}
+                      value={newTaskChecklist}
+                      onChange={(event) => setNewTaskChecklist(event.target.value)}
+                      placeholder="One checklist item per line"
+                    />
+                  </label>
+
+                  <button type="submit" className="btn-task-editor-submit">
+                    {createTaskMode === "reassign" ? "Save & reassign" : "Save & assign"}
+                  </button>
+                </section>
+              </form>
+
+              <footer className="screen-indicator-footer">
+                <span>TEAM WORKSPACE WEB APP · TASK WORKFLOW</span>
+                <span>CREATE TASK</span>
+              </footer>
             </section>
           ) : (
             <section className="coming-soon-page"><h2>{activePage}</h2><p>Page is not available.</p></section>

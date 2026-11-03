@@ -1,5 +1,16 @@
 import { useEffect, useState, useMemo } from "react";
 import type { FormEvent } from "react";
+import {
+  BarChart3,
+  Bell,
+  Clock3,
+  FolderKanban,
+  LayoutDashboard,
+  ListTodo,
+  MessageCircle,
+  MessagesSquare,
+  UsersRound,
+} from "lucide-react";
 
 export type ProjectItem = {
   id: string;
@@ -61,6 +72,7 @@ export type Task = {
   timerRunning?: boolean;
   completionNotes?: string;
   changesDescription?: string;
+  availableForPickup?: boolean;
 };
 
 export type BoardCard = {
@@ -105,6 +117,14 @@ export type AppNotification = {
 
 export type PortalRole = "admin" | "lead_employee";
 export type LeadWorkspace = "lead" | "employee";
+export type WorkspaceRole = "admin" | "lead" | "employee";
+type LocalAccount = {
+  name: string;
+  email: string;
+  username: string;
+  password: string;
+  workspaces: WorkspaceRole[];
+};
 
 export type PageName =
   | "Dashboard"
@@ -122,14 +142,16 @@ export type PageName =
   | "Team Progress"
   | "Notifications"
   | "Profile"
-  | "Settings";
+  | "Settings"
+  | "Time Tracking"
+  | "Reports";
 
 export type AuthStep =
   | "welcome"
   | "portal-select"
   | "signin"
   | "signup-profile"
-  | "verify-phone"
+  | "verify-email"
   | "signup-credentials"
   | "forgot";
 
@@ -153,9 +175,6 @@ export function TeamIcon({ size = 22 }: { size?: number }) {
     </svg>
   );
 }
-
-// The signed-in Team Lead / Employee demo user (one person, two views)
-const LEAD_USER = "Arun Patel";
 
 // Initial Data Seed
 export const initialProjects: ProjectItem[] = [
@@ -503,6 +522,27 @@ export const initialTasks: Task[] = [
     timeSpentSeconds: 80 * 60,
   },
   {
+    id: "TASK-1048",
+    title: "Prepare employee onboarding FAQ",
+    project: "HR Management",
+    projectCode: "H",
+    projectBadgeColor: "#fef3c7",
+    assignedTo: "Available",
+    assignedToAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80",
+    assignedBy: "Maya Chen",
+    created: "Today",
+    due: "12 Nov 2026",
+    priority: "Low",
+    status: "To do",
+    description: "Document the common onboarding questions and answers for new team members.",
+    acceptanceChecklist: [
+      { id: "chk-1", text: "Collect questions from the HR team", completed: false },
+      { id: "chk-2", text: "Review and publish the FAQ", completed: false },
+    ],
+    timeSpentSeconds: 0,
+    availableForPickup: true,
+  },
+  {
     id: "TASK-1047",
     title: "Executive ARR cohort chart component",
     project: "Analytics Dashboard",
@@ -799,14 +839,15 @@ export default function App() {
   const [portalRole, setPortalRole] = useState<PortalRole>("admin");
   const [leadWorkspace, setLeadWorkspace] = useState<LeadWorkspace>("lead");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [availableWorkspaces, setAvailableWorkspaces] = useState<WorkspaceRole[]>(["admin"]);
+  const [selectedSignupWorkspaces, setSelectedSignupWorkspaces] = useState<WorkspaceRole[]>([]);
+  const [signupUsername, setSignupUsername] = useState("");
+  const [registeredAccount, setRegisteredAccount] = useState<LocalAccount | null>(null);
+  const [signedInAccount, setSignedInAccount] = useState<LocalAccount | null>(null);
 
   // Form Inputs for Auth
-  const [loginId, setLoginId] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
+  const [loginId, setLoginId] = useState("abc@gmail.com");
+  const [password, setPassword] = useState("123456");
   const [showPassword, setShowPassword] = useState(false);
   const [notice, setNotice] = useState("");
   const [signupName, setSignupName] = useState("");
@@ -819,7 +860,6 @@ export default function App() {
   // Navigation & Search
   const [activePage, setActivePage] = useState<PageName>("Dashboard");
   const [pageHistory, setPageHistory] = useState<PageName[]>([]);
-  const [search, setSearch] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
 
   // Visual Atmosphere
@@ -829,10 +869,10 @@ export default function App() {
   const [projectsList, setProjectsList] = useState<ProjectItem[]>(initialProjects);
   const [teamsList, setTeamsList] = useState<TeamData[]>(initialTeams);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [boardCards, setBoardCards] = useState<BoardCard[]>(initialBoardCards);
+  const [boardCards] = useState<BoardCard[]>(initialBoardCards);
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>(initialChatMessages);
   const [directMessages, setDirectMessages] = useState<Record<string, ChatMessage[]>>(initialDirectMessages);
-  const [timeLogs, setTimeLogs] = useState<TimeLogEntry[]>(initialTimeLogs);
+  const [timeLogs] = useState<TimeLogEntry[]>(initialTimeLogs);
   const [notifications, setNotifications] = useState<AppNotification[]>(initialNotifications);
 
   // Active Chats
@@ -846,12 +886,12 @@ export default function App() {
   const [showCreateProjectModal, setShowCreateProjectModal] = useState<boolean>(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showAssignTaskModal, setShowAssignTaskModal] = useState<boolean>(false);
-  const [assignTaskPreselectedProject, setAssignTaskPreselectedProject] = useState<string>("");
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
   // Filter States
   const [projectSearch, setProjectSearch] = useState<string>("");
   const [projectStatusFilter, setProjectStatusFilter] = useState<string>("all");
+  const [projectMemberSearch, setProjectMemberSearch] = useState("");
   const [taskSearch, setTaskSearch] = useState<string>("");
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<string>("all");
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>("all");
@@ -915,68 +955,84 @@ export default function App() {
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
+  const activeWorkspace: WorkspaceRole =
+    portalRole === "admin" ? "admin" : leadWorkspace;
+  const isManager = activeWorkspace === "admin";
+  const isTeamLead = activeWorkspace === "lead";
+  const isEmployee = activeWorkspace === "employee";
+
   // Determine current user profile based on portal and workspace
   const currentUser = useMemo(() => {
-    if (portalRole === "admin") {
+    if (activeWorkspace === "admin") {
       return {
-        name: "Admin Director",
-        email: "admin@workflow.internal",
-        role: "System Administrator",
-        initials: "AD",
+        name: signedInAccount?.name || "Arun Patel",
+        email: signedInAccount?.email || "abc@gmail.com",
+        role: "Manager",
+        initials: (signedInAccount?.name || "Arun Patel")
+          .split(" ")
+          .map((part) => part[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase(),
         avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80",
       };
     }
-    if (leadWorkspace === "lead") {
+    if (activeWorkspace === "lead") {
       return {
-        name: "Arun Patel",
-        email: "arun.patel@workflow.internal",
-        role: "Lead · Alpha & Analytics",
-        initials: "AP",
+        name: signedInAccount?.name || "Arun Patel",
+        email: signedInAccount?.email || "abc@gmail.com",
+        role: "Team Lead",
+        initials: (signedInAccount?.name || "Arun Patel")
+          .split(" ")
+          .map((part) => part[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase(),
         avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80",
       };
     }
     return {
-      name: "Arun Patel",
-      email: "arun.patel@workflow.internal",
-      role: "Team Member",
-      initials: "AP",
+      name: signedInAccount?.name || "Arun Patel",
+      email: signedInAccount?.email || "abc@gmail.com",
+      role: "Employee",
+      initials: (signedInAccount?.name || "Arun Patel")
+        .split(" ")
+        .map((part) => part[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase(),
       avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80",
     };
-  }, [portalRole, leadWorkspace]);
-
-  // Navigation items mapping
-  const adminMenuItems: { label: PageName; icon: string }[] = [
-    { label: "Dashboard", icon: "▦" },
-    { label: "All Projects", icon: "🗂" },
-    { label: "All Tasks", icon: "✓" },
-    { label: "All Teams", icon: "👥" },
-    { label: "Team Board", icon: "▤" },
-    { label: "Group Chat", icon: "💬" },
-    { label: "Direct Chat", icon: "✉" },
-    { label: "Notifications", icon: "♢" },
-  ];
-
-  const leadMenuItems: { label: PageName; icon: string }[] = [
-    { label: "Dashboard", icon: "▦" },
-    { label: "My Projects", icon: "🗂" },
-    { label: "My Teams", icon: "👥" },
-    { label: "Team Tasks", icon: "✓" },
-    { label: "Team Progress", icon: "📈" },
-    { label: "Notifications", icon: "♢" },
-  ];
-
-  const employeeMenuItems: { label: PageName; icon: string }[] = [
-    { label: "Dashboard", icon: "▦" },
-    { label: "My Projects", icon: "🗂" },
-    { label: "My Team", icon: "👥" },
-    { label: "My Tasks", icon: "✓" },
-    { label: "Notifications", icon: "♢" },
-  ];
+  }, [activeWorkspace, signedInAccount]);
 
   const currentMenuItems = useMemo(() => {
-    if (portalRole === "admin") return adminMenuItems;
-    return leadWorkspace === "lead" ? leadMenuItems : employeeMenuItems;
-  }, [portalRole, leadWorkspace]);
+    const projectPage: PageName = isManager ? "All Projects" : "My Projects";
+    const teamsPage: PageName = isManager ? "All Teams" : isTeamLead ? "My Teams" : "My Team";
+    const tasksPage: PageName = isManager ? "All Tasks" : isTeamLead ? "Team Tasks" : "My Tasks";
+    if (isManager) {
+      return [
+        { label: "Overview", icon: <LayoutDashboard size={18} />, destination: "Dashboard" as PageName },
+        { label: "Project", icon: <FolderKanban size={18} />, destination: "All Projects" as PageName },
+        { label: "Team", icon: <UsersRound size={18} />, destination: "All Teams" as PageName },
+        { label: "Tasks", icon: <ListTodo size={18} />, destination: "All Tasks" as PageName },
+        { label: "Time Logs", icon: <Clock3 size={18} />, destination: "Time Tracking" as PageName },
+        { label: "Team Chat", icon: <MessagesSquare size={18} />, destination: "Group Chat" as PageName },
+        { label: "Direct Messages", icon: <MessageCircle size={18} />, destination: "Direct Chat" as PageName },
+        { label: "Reports", icon: <BarChart3 size={18} />, destination: "Reports" as PageName },
+        { label: "Notification", icon: <Bell size={18} />, destination: "Notifications" as PageName },
+      ];
+    }
+    return [
+      { label: "Dashboard", icon: "▦", destination: "Dashboard" as PageName },
+      { label: "Projects", icon: "🗂", destination: projectPage },
+      { label: "Teams & Members", icon: "👥", destination: teamsPage },
+      { label: "Tasks", icon: "✓", destination: tasksPage },
+      { label: "Time Tracking", icon: "◷", destination: "Time Tracking" as PageName },
+      { label: "Communication", icon: "💬", destination: "Group Chat" as PageName },
+      { label: "Reports", icon: "📈", destination: "Reports" as PageName },
+      { label: "Settings", icon: "⚙", destination: "Settings" as PageName },
+    ];
+  }, [isManager, isTeamLead]);
 
   // Filtered Projects based on Role / Workspace
   const visibleProjects = useMemo(() => {
@@ -985,13 +1041,20 @@ export default function App() {
       if (leadWorkspace === "lead") {
         // Team Lead sees only projects where they are assigned as Team Lead
         // Lead sees ONLY projects the admin assigned to them as Team Lead
-        list = list.filter((p) => p.teamLeader === LEAD_USER);
+        list = list.filter((p) => p.teamLeader === currentUser.name);
       } else {
-        // As a team member: only projects where they have tasks assigned to them
+        // Employees see projects assigned through membership or their task assignments.
         const memberProjects = new Set(
-          tasks.filter((t) => t.assignedTo === LEAD_USER).map((t) => t.project)
+          [
+            ...tasks
+              .filter((task) => task.assignedTo === currentUser.name)
+              .map((task) => task.project),
+            ...teamsList
+              .filter((team) => team.members.some((member) => member.name === currentUser.name))
+              .map((team) => team.project),
+          ]
         );
-        list = list.filter((p) => memberProjects.has(p.name) && p.teamLeader !== LEAD_USER);
+        list = list.filter((project) => memberProjects.has(project.name) || project.members.includes(currentUser.name));
       }
     }
     if (projectSearch.trim()) {
@@ -1008,7 +1071,7 @@ export default function App() {
       list = list.filter((p) => p.status === projectStatusFilter);
     }
     return list;
-  }, [projectsList, tasks, portalRole, leadWorkspace, projectSearch, projectStatusFilter]);
+  }, [projectsList, teamsList, tasks, portalRole, leadWorkspace, currentUser.name, projectSearch, projectStatusFilter]);
 
   // Filtered Teams based on Role / Workspace
   const visibleTeams = useMemo(() => {
@@ -1016,13 +1079,24 @@ export default function App() {
     if (portalRole === "lead_employee") {
       if (leadWorkspace === "lead") {
         // Lead sees only teams they manage
-        const ledProjects = new Set(projectsList.filter((p) => p.teamLeader === LEAD_USER).map((p) => p.name));
-        list = list.filter((t) => t.lead === LEAD_USER || ledProjects.has(t.project));
+        const ledProjects = new Set(projectsList.filter((p) => p.teamLeader === currentUser.name).map((p) => p.name));
+        list = list.filter((t) => t.lead === currentUser.name || ledProjects.has(t.project));
       } else {
         const memberProjects = new Set(
-          tasks.filter((t) => t.assignedTo === LEAD_USER).map((t) => t.project)
+          [
+            ...tasks
+              .filter((task) => task.assignedTo === currentUser.name)
+              .map((task) => task.project),
+            ...teamsList
+              .filter((team) => team.members.some((member) => member.name === currentUser.name))
+              .map((team) => team.project),
+          ]
         );
-        list = list.filter((t) => memberProjects.has(t.project) && t.lead !== LEAD_USER);
+        list = list.filter(
+          (team) =>
+            memberProjects.has(team.project) ||
+            team.members.some((member) => member.name === currentUser.name)
+        );
       }
     }
     if (teamSearch.trim()) {
@@ -1035,7 +1109,7 @@ export default function App() {
       );
     }
     return list;
-  }, [teamsList, projectsList, tasks, portalRole, leadWorkspace, teamSearch]);
+  }, [teamsList, projectsList, tasks, portalRole, leadWorkspace, currentUser.name, teamSearch]);
 
   // Filtered Tasks based on Role / Workspace
   const visibleTasks = useMemo(() => {
@@ -1044,11 +1118,15 @@ export default function App() {
       if (leadWorkspace === "lead") {
         // Team tasks in Arun's projects or assigned by Arun
         // Only tasks inside projects the admin assigned to this lead
-        const ledProjects = new Set(projectsList.filter((p) => p.teamLeader === LEAD_USER).map((p) => p.name));
+        const ledProjects = new Set(projectsList.filter((p) => p.teamLeader === currentUser.name).map((p) => p.name));
         list = list.filter((t) => ledProjects.has(t.project));
       } else {
         // As a team member: tasks assigned directly to them
-        list = list.filter((t) => t.assignedTo === LEAD_USER);
+        list = list.filter(
+          (task) =>
+            task.assignedTo === currentUser.name ||
+            (task.availableForPickup && visibleProjects.some((project) => project.name === task.project))
+        );
       }
     }
     if (taskSearch.trim()) {
@@ -1067,15 +1145,62 @@ export default function App() {
       list = list.filter((t) => t.status === taskStatusFilter);
     }
     return list;
-  }, [tasks, projectsList, portalRole, leadWorkspace, taskSearch, taskPriorityFilter, taskStatusFilter]);
+  }, [tasks, projectsList, teamsList, visibleProjects, portalRole, leadWorkspace, currentUser.name, taskSearch, taskPriorityFilter, taskStatusFilter]);
+
+  const canAccessPage = (page: PageName) => {
+    if (isManager) return true;
+    if (isTeamLead) {
+      return !["All Projects", "All Tasks", "All Teams", "My Team"].includes(page);
+    }
+    return [
+      "Dashboard",
+      "My Projects",
+      "My Team",
+      "My Tasks",
+      "Group Chat",
+      "Direct Chat",
+      "Notifications",
+      "Profile",
+      "Settings",
+      "Time Tracking",
+      "Reports",
+    ].includes(page);
+  };
+
+  const canManageTask = (task: Task) =>
+    isManager ||
+    (isTeamLead && visibleProjects.some((project) => project.name === task.project)) ||
+    (isEmployee && task.assignedTo === currentUser.name);
+
+  const workspaceLabel = (workspace: WorkspaceRole) =>
+    workspace === "admin" ? "Manager" : workspace === "lead" ? "Team Lead" : "Employee";
+
+  const switchWorkspace = (workspace: WorkspaceRole) => {
+    if (!availableWorkspaces.includes(workspace)) return;
+    setPortalRole(workspace === "admin" ? "admin" : "lead_employee");
+    if (workspace !== "admin") setLeadWorkspace(workspace);
+    setActivePage("Dashboard");
+    setPageHistory([]);
+    setProfileOpen(false);
+    setRunningTaskId(null);
+    setSelectedProjectId(null);
+    setSelectedTaskId(null);
+    setSelectedTeamId(null);
+    setShowCreateProjectModal(false);
+    setShowAssignTaskModal(false);
+    setNotice(`Switched to ${workspaceLabel(workspace)} workspace.`);
+  };
 
   // Navigation Helper
   const navigateTo = (page: PageName) => {
+    if (!canAccessPage(page)) {
+      setNotice("You do not have permission to access that page.");
+      return;
+    }
     if (page === activePage) return;
     setPageHistory((prev) => [...prev, activePage]);
     setActivePage(page);
     setProfileOpen(false);
-    setSearch("");
   };
 
   const goBack = () => {
@@ -1090,9 +1215,13 @@ export default function App() {
 
   const logout = () => {
     setIsLoggedIn(false);
-    setAuthStep("portal-select");
-    setLoginId("");
-    setPassword("");
+    setAuthStep("signin");
+    setPortalRole("admin");
+    setLeadWorkspace("lead");
+    setAvailableWorkspaces(["admin", "lead", "employee"]);
+    setLoginId("abc@gmail.com");
+    setPassword("123456");
+    setSignedInAccount(null);
     setActivePage("Dashboard");
     setPageHistory([]);
     setNotice("");
@@ -1102,8 +1231,48 @@ export default function App() {
   // Sign In Handler
   const handleSignIn = (e: FormEvent) => {
     e.preventDefault();
-    if (!loginId.trim() || password.length < 3) {
-      setNotice("Please enter a valid username/email and password (min 3 chars).");
+    if (!loginId.trim() || !password) {
+      setNotice("Enter your email or username and password.");
+      return;
+    }
+    if (
+      loginId.trim().toLowerCase() === "abc@gmail.com" &&
+      password === "123456"
+    ) {
+      const demoAccount: LocalAccount = {
+        name: "Arun Patel",
+        email: "abc@gmail.com",
+        username: "abc",
+        password: "123456",
+        workspaces: ["admin", "lead", "employee"],
+      };
+      setSignedInAccount(demoAccount);
+      setAvailableWorkspaces(demoAccount.workspaces);
+      setPortalRole("admin");
+      setLeadWorkspace("lead");
+      setIsLoggedIn(true);
+      setActivePage("Dashboard");
+      setPageHistory([]);
+      setNotice("");
+      return;
+    }
+    const signingInAsRegisteredAccount =
+      registeredAccount &&
+      [registeredAccount.email, registeredAccount.username].some(
+        (identifier) => identifier.toLowerCase() === loginId.trim().toLowerCase()
+      );
+    if (signingInAsRegisteredAccount) {
+      if (password !== registeredAccount.password) {
+        setNotice("The password is incorrect.");
+        return;
+      }
+      setSignedInAccount(registeredAccount);
+      setAvailableWorkspaces(registeredAccount.workspaces);
+      const firstWorkspace = registeredAccount.workspaces[0];
+      setPortalRole(firstWorkspace === "admin" ? "admin" : "lead_employee");
+      if (firstWorkspace !== "admin") setLeadWorkspace(firstWorkspace);
+    } else {
+      setNotice("Those credentials are not recognized. Use abc@gmail.com / 123456 for the demo.");
       return;
     }
     setIsLoggedIn(true);
@@ -1115,6 +1284,8 @@ export default function App() {
   const loginAsDemo = (role: PortalRole, ws: LeadWorkspace = "lead", id: string = "") => {
     setPortalRole(role);
     setLeadWorkspace(ws);
+    setAvailableWorkspaces(role === "admin" ? ["admin"] : ["lead", "employee"]);
+    setSignedInAccount(null);
     setLoginId(id);
     setPassword("demo123");
     setIsLoggedIn(true);
@@ -1125,6 +1296,11 @@ export default function App() {
   // Toggle Timer on a Task
   const toggleTaskTimer = (taskId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task || task.assignedTo !== currentUser.name) {
+      setNotice("You can only track time on your own assigned tasks.");
+      return;
+    }
     if (runningTaskId === taskId) {
       setRunningTaskId(null);
       setNotice(`Timer paused for ${taskId}.`);
@@ -1134,9 +1310,35 @@ export default function App() {
     }
   };
 
+  const takeAvailableTask = (taskId: string) => {
+    if (!isEmployee) return;
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task?.availableForPickup || !visibleProjects.some((project) => project.name === task.project)) {
+      setNotice("This task is not available in your assigned projects.");
+      return;
+    }
+    setTasks((previous) =>
+      previous.map((item) =>
+        item.id === taskId
+          ? {
+              ...item,
+              assignedTo: currentUser.name,
+              assignedToAvatar: currentUser.avatar,
+              availableForPickup: false,
+            }
+          : item
+      )
+    );
+    setNotice(`You are now assigned to "${task.title}".`);
+  };
+
   // Create Project Form Submit
   const handleCreateProject = (e: FormEvent) => {
     e.preventDefault();
+    if (!isManager) {
+      setNotice("Only Managers can create projects.");
+      return;
+    }
     if (!newProjName.trim()) {
       setNotice("Please provide a project name.");
       return;
@@ -1173,8 +1375,28 @@ export default function App() {
   // Assign Task Form Submit
   const handleAssignTask = (e: FormEvent) => {
     e.preventDefault();
+    if (!isManager && !isTeamLead) {
+      setNotice("Employees cannot assign tasks.");
+      return;
+    }
     if (!newTaskTitle.trim()) {
       setNotice("Please provide a task title.");
+      return;
+    }
+    if (
+      isTeamLead &&
+      !visibleProjects.some((project) => project.name === newTaskProject)
+    ) {
+      setNotice("Team Leads can only assign tasks within their assigned projects.");
+      return;
+    }
+    if (
+      isTeamLead &&
+      !teamsList
+        .find((team) => team.project === newTaskProject)
+        ?.members.some((member) => member.name === newTaskAssignee)
+    ) {
+      setNotice("Team Leads can only assign tasks to members of their assigned team.");
       return;
     }
     const createdTask: Task = {
@@ -1205,6 +1427,118 @@ export default function App() {
     setNewTaskTitle("");
     setNewTaskDesc("");
     setNotice(`Task ${createdTask.id} assigned to ${newTaskAssignee}.`);
+  };
+
+  const createTeam = () => {
+    if (!isManager) {
+      setNotice("Only Managers can create teams.");
+      return;
+    }
+    const name = window.prompt("Enter the team name:");
+    if (!name?.trim()) return;
+    const defaultProject = projectsList[0]?.name || "";
+    const projectName = window.prompt(
+      `Enter the project name for this team:\n${projectsList.map((project) => project.name).join(", ")}`,
+      defaultProject
+    );
+    const project = projectsList.find(
+      (item) => item.name.toLowerCase() === projectName?.trim().toLowerCase()
+    );
+    if (!project) {
+      setNotice("Choose an existing project for the new team.");
+      return;
+    }
+    const lead = window.prompt("Assign a Team Lead:", project.teamLeader)?.trim();
+    if (!lead) return;
+    const newTeam: TeamData = {
+      id: `team-${Date.now()}`,
+      name: name.trim(),
+      description: `Team for ${project.name}.`,
+      project: project.name,
+      lead,
+      leadAvatar: project.teamLeaderAvatar,
+      leadEmail: `${lead.toLowerCase().replace(/\s+/g, ".")}@workflow.internal`,
+      members: [],
+      totalTasks: 0,
+      completedTasks: 0,
+    };
+    setTeamsList((previous) => [newTeam, ...previous]);
+    setProjectsList((previous) =>
+      previous.map((item) =>
+        item.id === project.id ? { ...item, team: newTeam.name, teamLeader: lead } : item
+      )
+    );
+    setNotice(`Team "${newTeam.name}" created for ${project.name}.`);
+  };
+
+  const addTeamMember = (team: TeamData) => {
+    if (!isManager) return;
+    const name = window.prompt(`Add a member to ${team.name}:`)?.trim();
+    if (!name) return;
+    const email = window.prompt("Member email address:")?.trim();
+    if (!email) return;
+    const role = window.prompt("Member job title:", "Employee")?.trim() || "Employee";
+    const member: TeamMemberInfo = {
+      id: `member-${Date.now()}`,
+      name,
+      email,
+      role,
+      avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80",
+      activeTasks: 0,
+      status: "Active",
+    };
+    setTeamsList((previous) =>
+      previous.map((item) =>
+        item.id === team.id ? { ...item, members: [...item.members, member] } : item
+      )
+    );
+    setProjectsList((previous) =>
+      previous.map((item) =>
+        item.name === team.project && !item.members.includes(name)
+          ? { ...item, members: [...item.members, name] }
+          : item
+      )
+    );
+    setNotice(`${name} added to ${team.name}.`);
+  };
+
+  const removeTeamMember = (team: TeamData, member: TeamMemberInfo) => {
+    if (!isManager || !window.confirm(`Remove ${member.name} from ${team.name}?`)) return;
+    setTeamsList((previous) =>
+      previous.map((item) =>
+        item.id === team.id
+          ? { ...item, members: item.members.filter((candidate) => candidate.id !== member.id) }
+          : item
+      )
+    );
+    setProjectsList((previous) =>
+      previous.map((item) =>
+        item.name === team.project
+          ? { ...item, members: item.members.filter((name) => name !== member.name) }
+          : item
+      )
+    );
+    setNotice(`${member.name} removed from ${team.name}.`);
+  };
+
+  const changeTeamLead = (team: TeamData) => {
+    if (!isManager) return;
+    const lead = window.prompt("Assign a Team Lead:", team.lead)?.trim();
+    if (!lead || lead === team.lead) return;
+    const leadEmail = `${lead.toLowerCase().replace(/\s+/g, ".")}@workflow.internal`;
+    setTeamsList((previous) =>
+      previous.map((item) =>
+        item.id === team.id
+          ? { ...item, lead, leadEmail }
+          : item
+      )
+    );
+    setProjectsList((previous) =>
+      previous.map((item) =>
+        item.name === team.project ? { ...item, teamLeader: lead } : item
+      )
+    );
+    setNotice(`${team.name} is now led by ${lead}.`);
   };
 
   // Send Group Chat Message
@@ -1251,6 +1585,46 @@ export default function App() {
   const selectedProjectObj = projectsList.find((p) => p.id === selectedProjectId);
   // Team Selected for View Details
   const selectedTeamObj = teamsList.find((t) => t.id === selectedTeamId);
+  const assignableTaskMembers = isManager
+    ? Array.from(
+        new Set(
+          teamsList.flatMap((team) => [team.lead, ...team.members.map((member) => member.name)])
+        )
+      )
+    : teamsList.find((team) => team.project === newTaskProject)?.members.map((member) => member.name) || [];
+  const selectedTaskAssignees = selectedTaskObj
+    ? isManager
+      ? assignableTaskMembers
+      : teamsList.find((team) => team.project === selectedTaskObj.project)?.members.map((member) => member.name) || []
+    : [];
+  const managerOverviewActivity = timeLogs.slice(0, 4);
+  const managerOverviewProjects = projectsList;
+  const managerOverviewTeams = teamsList;
+  const managerCompletedTasks = teamsList.reduce((total, team) => total + team.completedTasks, 0);
+  const managerTotalTeamTasks = teamsList.reduce((total, team) => total + team.totalTasks, 0);
+  const managerCompletionRate = managerTotalTeamTasks
+    ? Math.round((managerCompletedTasks / managerTotalTeamTasks) * 100)
+    : 0;
+  const managerProjectStatuses = [
+    { label: "In progress", status: "In Progress", color: "var(--manager-chart-progress)" },
+    { label: "Completed", status: "Completed", color: "var(--manager-chart-complete)" },
+    { label: "Pending", status: "Pending", color: "var(--manager-chart-pending)" },
+    { label: "Not started", status: "Not Started", color: "var(--manager-chart-not-started)" },
+  ].map((item) => ({
+    ...item,
+    count: managerOverviewProjects.filter((project) => project.status === item.status).length,
+  }));
+  const managerProjectTotal = Math.max(managerOverviewProjects.length, 1);
+  const managerProjectStatusStops: string[] = [];
+  let managerProjectStatusOffset = 0;
+  managerProjectStatuses.forEach((item) => {
+    const nextOffset = managerProjectStatusOffset + (item.count / managerProjectTotal) * 100;
+    managerProjectStatusStops.push(`${item.color} ${managerProjectStatusOffset}% ${nextOffset}%`);
+    managerProjectStatusOffset = nextOffset;
+  });
+  const managerProjectChartBackground = managerOverviewProjects.length
+    ? `conic-gradient(${managerProjectStatusStops.join(", ")})`
+    : "conic-gradient(#e9e4f2 0% 100%)";
 
   // -------------------------------------------------------------
   // RENDER: AUTH / LOGIN FLOW
@@ -1291,7 +1665,10 @@ export default function App() {
                 className="welcome-signin-button"
                 type="button"
                 onClick={() => {
-                  setAuthStep("portal-select");
+                  setLoginId("abc@gmail.com");
+                  setPassword("123456");
+                  setAvailableWorkspaces(["admin", "lead", "employee"]);
+                  setAuthStep("signin");
                   setNotice("");
                 }}
               >
@@ -1311,10 +1688,12 @@ export default function App() {
                 <span className="auth-tag">
                   {authStep === "portal-select"
                     ? "CHOOSE YOUR ROLE"
-                    : authStep === "signup-profile" || authStep === "verify-phone" || authStep === "signup-credentials"
+                    : authStep === "signup-profile" || authStep === "verify-email" || authStep === "signup-credentials"
                     ? "GET STARTED"
+                    : authStep === "signin"
+                    ? "SIGN IN"
                     : portalRole === "admin"
-                    ? "ADMIN"
+                    ? "MANAGER WORKSPACE"
                     : "TEAM LEAD / EMPLOYEE"}
                 </span>
                 <h2>
@@ -1324,23 +1703,21 @@ export default function App() {
                     ? "Welcome Back"
                     : authStep === "signup-profile"
                     ? "Create your account"
-                    : authStep === "verify-phone"
-                    ? "Verify your phone"
+                    : authStep === "verify-email"
+                    ? "Verify your email"
                     : authStep === "signup-credentials"
                     ? "Set your password"
                     : "Reset Password"}
                 </h2>
                 <p className="subtitle">
                   {authStep === "portal-select"
-                    ? "Select Admin or Team Lead / Employee to continue."
+                    ? "Choose a demo workspace to sign in, or create an account with multiple workspaces."
                     : authStep === "signin"
-                    ? `Sign in with your credentials to enter ${
-                        portalRole === "admin" ? "the Admin console" : "your team dashboard"
-                      }.`
+                    ? "Sign in to your account. Switch workspaces anytime from your profile menu."
                     : authStep === "signup-profile"
                     ? "Tell us a little about yourself to get started."
-                    : authStep === "verify-phone"
-                    ? `We sent a 6-digit code to ${signupPhone || "your phone"}. (Demo code: 123456)`
+                    : authStep === "verify-email"
+                    ? `We sent a 6-digit code to ${signupEmail || "your email"}. (Demo code: 123456)`
                     : authStep === "signup-credentials"
                     ? "Choose a secure password to finish creating your account."
                     : "Enter your registered email to receive reset instructions."}
@@ -1349,7 +1726,7 @@ export default function App() {
                 {notice && <div className="auth-notice-banner">{notice}</div>}
               </div>
 
-              {/* 1. PORTAL SELECTION STEP (2 PORTALS) */}
+              {/* Demo sign-in shortcuts */}
               {authStep === "portal-select" && (
                 <div className="portal-selection-container">
                   <div className="portal-cards-list two-portals">
@@ -1359,6 +1736,7 @@ export default function App() {
                       className={`portal-role-card ${portalRole === "admin" ? "active" : ""}`}
                       onClick={() => {
                         setPortalRole("admin");
+                        setAvailableWorkspaces(["admin"]);
                         setLoginId("admin@workflow.internal");
                         setPassword("demo123");
                         setAuthStep("signin");
@@ -1390,6 +1768,8 @@ export default function App() {
                       className={`portal-role-card ${portalRole === "lead_employee" ? "active" : ""}`}
                       onClick={() => {
                         setPortalRole("lead_employee");
+                        setLeadWorkspace("lead");
+                        setAvailableWorkspaces(["lead", "employee"]);
                         setLoginId("arun.patel@workflow.internal");
                         setPassword("demo123");
                         setAuthStep("signin");
@@ -1455,7 +1835,7 @@ export default function App() {
                     <input
                       type="text"
                       required
-                      placeholder="e.g. admin@workflow.internal or arun.patel"
+                      placeholder="abc@gmail.com"
                       value={loginId}
                       onChange={(e) => setLoginId(e.target.value)}
                     />
@@ -1476,7 +1856,7 @@ export default function App() {
                       <input
                         type={showPassword ? "text" : "password"}
                         required
-                        placeholder="••••••••"
+                        placeholder="123456"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                       />
@@ -1500,6 +1880,9 @@ export default function App() {
                   <button type="submit" className="btn-primary-auth">
                     Sign In →
                   </button>
+                  <p className="auth-switch-text">
+                    Demo account: <strong>abc@gmail.com</strong> / <strong>123456</strong>
+                  </p>
 
                   <p className="auth-switch-text">
                     New to Work Flow?{" "}
@@ -1515,26 +1898,21 @@ export default function App() {
                     </button>
                   </p>
 
-                  <div className="auth-footer-links">
-                    <button
-                      type="button"
-                      className="link-btn-secondary"
-                      onClick={() => setAuthStep("portal-select")}
-                    >
-                      ← Change role
-                    </button>
-                  </div>
                 </form>
               )}
 
-              {/* 2b. CREATE ACCOUNT — PROFILE */}
+              {/* CREATE ACCOUNT — PROFILE */}
               {authStep === "signup-profile" && (
                 <form
                   className="auth-form"
                   onSubmit={(e) => {
                     e.preventDefault();
+                    if (selectedSignupWorkspaces.length === 0) {
+                      setNotice("Select at least one workspace to continue.");
+                      return;
+                    }
                     setNotice("");
-                    setAuthStep("verify-phone");
+                    setAuthStep("verify-email");
                   }}
                 >
                   <div className="form-group">
@@ -1548,6 +1926,18 @@ export default function App() {
                     />
                   </div>
                   <div className="form-group">
+                    <label>Phone number</label>
+                    <input
+                      type="tel"
+                      required
+                      minLength={7}
+                      maxLength={15}
+                      placeholder="Enter your phone number"
+                      value={signupPhone}
+                      onChange={(e) => setSignupPhone(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
                     <label>Email address</label>
                     <input
                       type="email"
@@ -1557,19 +1947,33 @@ export default function App() {
                       onChange={(e) => setSignupEmail(e.target.value)}
                     />
                   </div>
-                  <div className="form-group">
-                    <label>Phone number</label>
-                    <input
-                      type="tel"
-                      required
-                      pattern="[0-9+\s-]{7,15}"
-                      placeholder="Enter your phone number"
-                      value={signupPhone}
-                      onChange={(e) => setSignupPhone(e.target.value)}
-                    />
-                  </div>
+                  <fieldset className="form-group" style={{ border: 0, padding: 0, margin: 0 }}>
+                    <legend style={{ marginBottom: 10, fontWeight: 700 }}>Choose your workspaces</legend>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {([
+                        ["admin", "Manager"],
+                        ["lead", "Team Lead"],
+                        ["employee", "Employee"],
+                      ] as const).map(([workspace, label]) => (
+                        <label key={workspace} className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={selectedSignupWorkspaces.includes(workspace)}
+                            onChange={() => {
+                              setSelectedSignupWorkspaces((current) =>
+                                current.includes(workspace)
+                                  ? current.filter((item) => item !== workspace)
+                                  : [...current, workspace]
+                              );
+                            }}
+                          />
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
                   <button type="submit" className="btn-primary-auth btn-arrow">
-                    <span>Continue to phone verification</span>
+                    <span>Continue to email verification</span>
                     <span aria-hidden="true">⟶</span>
                   </button>
                   <p className="auth-switch-text">
@@ -1581,14 +1985,14 @@ export default function App() {
                 </form>
               )}
 
-              {/* 2c. CREATE ACCOUNT — VERIFY PHONE */}
-              {authStep === "verify-phone" && (
+              {/* CREATE ACCOUNT — VERIFY EMAIL */}
+              {authStep === "verify-email" && (
                 <form
                   className="auth-form"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    if (signupOtp.trim().length !== 6) {
-                      setNotice("Please enter the 6-digit code (demo: 123456).");
+                    if (signupOtp.trim() !== "123456") {
+                      setNotice("Please enter the correct 6-digit email code (demo: 123456).");
                       return;
                     }
                     setNotice("");
@@ -1596,7 +2000,7 @@ export default function App() {
                   }}
                 >
                   <div className="form-group">
-                    <label>Verification code</label>
+                    <label>Email verification code</label>
                     <input
                       type="text"
                       inputMode="numeric"
@@ -1608,7 +2012,7 @@ export default function App() {
                     />
                   </div>
                   <button type="submit" className="btn-primary-auth btn-arrow">
-                    <span>Verify phone</span>
+                    <span>Verify email</span>
                     <span aria-hidden="true">⟶</span>
                   </button>
                   <div className="auth-footer-links">
@@ -1619,7 +2023,7 @@ export default function App() {
                 </form>
               )}
 
-              {/* 2d. CREATE ACCOUNT — CREDENTIALS */}
+              {/* CREATE ACCOUNT — CREDENTIALS */}
               {authStep === "signup-credentials" && (
                 <form
                   className="auth-form"
@@ -1633,6 +2037,23 @@ export default function App() {
                       setNotice("Passwords do not match.");
                       return;
                     }
+                    if (selectedSignupWorkspaces.length === 0) {
+                      setNotice("Select at least one workspace before creating your account.");
+                      return;
+                    }
+                    const workspaces = (["admin", "lead", "employee"] as WorkspaceRole[])
+                      .filter((workspace) => selectedSignupWorkspaces.includes(workspace));
+                    const firstWorkspace = workspaces[0];
+                    setRegisteredAccount({
+                      name: signupName.trim(),
+                      email: signupEmail.trim(),
+                      username: signupUsername.trim(),
+                      password: signupPassword,
+                      workspaces,
+                    });
+                    setAvailableWorkspaces(workspaces);
+                    setPortalRole(firstWorkspace === "admin" ? "admin" : "lead_employee");
+                    if (firstWorkspace !== "admin") setLeadWorkspace(firstWorkspace);
                     setLoginId(signupEmail);
                     setPassword("");
                     setSignupPassword("");
@@ -1642,6 +2063,17 @@ export default function App() {
                     setAuthStep("signin");
                   }}
                 >
+                  <div className="form-group">
+                    <label>Username</label>
+                    <input
+                      type="text"
+                      required
+                      minLength={3}
+                      placeholder="Choose a username"
+                      value={signupUsername}
+                      onChange={(e) => setSignupUsername(e.target.value)}
+                    />
+                  </div>
                   <div className="form-group">
                     <label>Create password</label>
                     <input
@@ -1667,7 +2099,7 @@ export default function App() {
                     <span aria-hidden="true">⟶</span>
                   </button>
                   <div className="auth-footer-links">
-                    <button type="button" className="link-btn-secondary" onClick={() => setAuthStep("verify-phone")}>
+                    <button type="button" className="link-btn-secondary" onClick={() => setAuthStep("verify-email")}>
                       ← Back
                     </button>
                   </div>
@@ -1719,7 +2151,7 @@ export default function App() {
   // RENDER: MAIN APP SHELL (LOGGED IN)
   // -------------------------------------------------------------
   return (
-    <main className="app-shell green-black-theme">
+    <main className={`app-shell green-black-theme ${isManager && activePage === "Dashboard" ? "manager-overview-mode" : ""} ${notice ? "has-global-notice" : ""}`}>
       {/* SIDEBAR */}
       <aside className="sidebar">
         {/* Brand */}
@@ -1733,44 +2165,11 @@ export default function App() {
           </div>
         </div>
 
-        {/* Portal Pill Indicator */}
+        {/* Active workspace indicator */}
         <div className={`sidebar-portal-badge ${portalRole}`}>
           <span className="portal-dot"></span>
-          <span>{portalRole === "admin" ? "ADMIN CONSOLE" : "TEAM LEAD / EMPLOYEE"}</span>
+          <span>{workspaceLabel(activeWorkspace).toUpperCase()} WORKSPACE</span>
         </div>
-
-        {/* WORKSPACE SWITCHER: ONLY FOR TEAM LEAD OR EMPLOYEE PORTAL */}
-        {portalRole === "lead_employee" && (
-          <div className="workspace-switcher-section">
-            <span className="ws-section-label">CURRENT VIEW</span>
-            <div className="ws-toggle-pill-wrap">
-              <button
-                type="button"
-                className={`ws-toggle-pill ${leadWorkspace === "lead" ? "active" : ""}`}
-                onClick={() => {
-                  setLeadWorkspace("lead");
-                  setActivePage("Dashboard");
-                  setNotice("Switched to Team Lead view");
-                }}
-              >
-                <span className="ws-icon">👑</span>
-                <span>Lead</span>
-              </button>
-              <button
-                type="button"
-                className={`ws-toggle-pill ${leadWorkspace === "employee" ? "active" : ""}`}
-                onClick={() => {
-                  setLeadWorkspace("employee");
-                  setActivePage("Dashboard");
-                  setNotice("Switched to Employee view");
-                }}
-              >
-                <span className="ws-icon">💼</span>
-                <span>Employee</span>
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Navigation Menu */}
         <nav className="sidebar-nav" aria-label="Main navigation">
@@ -1778,30 +2177,74 @@ export default function App() {
             <button
               key={item.label}
               type="button"
-              className={`nav-item ${activePage === item.label ? "selected" : ""}`}
-              onClick={() => navigateTo(item.label)}
+              aria-label={item.label}
+              title={item.label}
+              className={`nav-item ${activePage === item.destination ? "selected" : ""}`}
+              onClick={() => navigateTo(item.destination)}
             >
               <span className="nav-icon">{item.icon}</span>
               <span className="nav-label">{item.label}</span>
-              {activePage === item.label && <span className="nav-indicator" />}
+              {activePage === item.destination && <span className="nav-indicator" />}
             </button>
           ))}
         </nav>
 
-        {/* User Card & Logout */}
-        <div className="sidebar-user">
-          <img src={currentUser.avatar} alt={currentUser.name} className="sidebar-user-avatar" />
-          <div className="sidebar-user-info">
-            <strong>{currentUser.name}</strong>
-            <small>{currentUser.role}</small>
-          </div>
+        <div className="sidebar-profile-wrap">
+          {profileOpen && (
+            <div className="sidebar-profile-menu" role="menu">
+              <div className="dropdown-user-header">
+                <strong>{currentUser.name}</strong>
+                <small>{currentUser.email}</small>
+              </div>
+              <hr className="dropdown-divider" />
+              <div className="dropdown-user-header">
+                <strong>Workspaces</strong>
+                <small>Switch your active workspace</small>
+              </div>
+              {(["admin", "lead", "employee"] as WorkspaceRole[])
+                .filter((workspace) => availableWorkspaces.includes(workspace))
+                .map((workspace) => (
+                  <button
+                    key={workspace}
+                    type="button"
+                    className="dropdown-item"
+                    aria-current={activeWorkspace === workspace ? "page" : undefined}
+                    onClick={() => switchWorkspace(workspace)}
+                  >
+                    {workspaceLabel(workspace)}
+                    {activeWorkspace === workspace ? " · Current" : ""}
+                  </button>
+                ))}
+              <hr className="dropdown-divider" />
+              <button
+                type="button"
+                className="dropdown-item"
+                onClick={() => {
+                  navigateTo("Notifications");
+                  setProfileOpen(false);
+                }}
+              >
+                Notifications ({notifications.filter((notification) => notification.unread).length})
+              </button>
+              <button type="button" className="dropdown-item logout" onClick={logout}>
+                Log Out
+              </button>
+            </div>
+          )}
           <button
             type="button"
-            className="sidebar-logout"
-            title="Log out"
-            onClick={logout}
+            className="sidebar-profile-trigger"
+            aria-haspopup="menu"
+            aria-expanded={profileOpen}
+            aria-label={`Open ${currentUser.name}'s profile menu`}
+            onClick={() => setProfileOpen(!profileOpen)}
           >
-            ↪
+            <img src={currentUser.avatar} alt="" className="sidebar-user-avatar" />
+            <span className="sidebar-user-info">
+              <strong>{currentUser.name}</strong>
+              <small>{currentUser.role}</small>
+            </span>
+            <span className="sidebar-profile-caret" aria-hidden="true">{profileOpen ? "▴" : "▾"}</span>
           </button>
         </div>
       </aside>
@@ -1809,7 +2252,7 @@ export default function App() {
       {/* WORKSPACE CONTENT AREA */}
       <section className="workspace">
         {/* TOPBAR */}
-        <header className="topbar">
+        {!(isManager && activePage === "Dashboard") && <header className="topbar">
           <div className="topbar-title">
             <button
               type="button"
@@ -1822,11 +2265,11 @@ export default function App() {
             <div>
               <h1>{activePage}</h1>
               <p>
-                {portalRole === "admin"
-                  ? "Admin · Full organization visibility"
-                  : leadWorkspace === "lead"
-                  ? "Team Lead view · Oversee teams, assign deliverables, and review progress"
-                  : "Employee view · Personal tasks, active timers, and team deliverables"}
+                {isManager
+                  ? "Manager · Full project, team, and task management"
+                  : isTeamLead
+                  ? "Team Lead · Manage assigned teams and project tasks"
+                  : "Employee · Personal tasks, timers, and permitted team information"}
               </p>
             </div>
           </div>
@@ -1850,58 +2293,8 @@ export default function App() {
               </div>
             )}
 
-            {/* Notifications Shortcut */}
-            <button
-              type="button"
-              className="topbar-icon-btn"
-              onClick={() => navigateTo("Notifications")}
-              title="Notifications"
-            >
-              <span className="bell-icon">♢</span>
-              {notifications.some((n) => n.unread) && <span className="badge-dot"></span>}
-            </button>
-
-            {/* Profile Dropdown Toggle */}
-            <div className="topbar-profile-wrap">
-              <button
-                type="button"
-                className="profile-btn-trigger"
-                onClick={() => setProfileOpen(!profileOpen)}
-              >
-                <img src={currentUser.avatar} alt={currentUser.name} className="topbar-avatar" />
-                <span className="topbar-user-name">{currentUser.name}</span>
-                <span className="caret-arrow">▾</span>
-              </button>
-
-              {profileOpen && (
-                <div className="topbar-dropdown-menu">
-                  <div className="dropdown-user-header">
-                    <strong>{currentUser.name}</strong>
-                    <small>{currentUser.email}</small>
-                  </div>
-                  <hr className="dropdown-divider" />
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      navigateTo("Notifications");
-                      setProfileOpen(false);
-                    }}
-                  >
-                    Notifications ({notifications.filter((n) => n.unread).length})
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item logout"
-                    onClick={logout}
-                  >
-                    Log Out
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
-        </header>
+        </header>}
 
         {/* GLOBAL NOTICE BANNER */}
         {notice && (
@@ -1917,10 +2310,162 @@ export default function App() {
         <div className="workspace-scrollable">
           {/* 1. DASHBOARD */}
           {activePage === "Dashboard" && (
-            <div className="dashboard-content-page">
+            <div className={`dashboard-content-page ${isManager ? "manager-overview-content" : ""}`}>
+              {isManager ? (
+                <div className="manager-overview-layout">
+                  <section className="manager-overview-metrics" aria-label="Workspace metrics">
+                    <article className="manager-overview-metric">
+                      <span className="manager-overview-metric-icon">▣</span>
+                      <div><small>Total projects</small><strong>{projectsList.length}</strong></div>
+                      <span className="manager-overview-metric-note">Managed</span>
+                    </article>
+                    <article className="manager-overview-metric">
+                      <span className="manager-overview-metric-icon">♧</span>
+                      <div><small>Total teams</small><strong>{teamsList.length}</strong></div>
+                      <span className="manager-overview-metric-note">Across projects</span>
+                    </article>
+                    <article className="manager-overview-metric">
+                      <span className="manager-overview-metric-icon">☷</span>
+                      <div><small>Total tasks</small><strong>{managerTotalTeamTasks}</strong></div>
+                      <span className="manager-overview-metric-note">Across all teams</span>
+                    </article>
+                    <article className="manager-overview-metric manager-overview-metric-highlight">
+                      <span className="manager-overview-metric-icon">✓</span>
+                      <div><small>Completion rate</small><strong>{managerCompletionRate}%</strong></div>
+                      <span className="manager-overview-metric-note">{managerCompletedTasks} of {managerTotalTeamTasks} team tasks</span>
+                    </article>
+                  </section>
+
+                  <section className="manager-overview-panel manager-team-overview" aria-labelledby="manager-team-overview-title">
+                    <div className="manager-panel-heading">
+                      <div>
+                        <h3 id="manager-team-overview-title">Team overview</h3>
+                        <p>Progress across your teams</p>
+                      </div>
+                      <button type="button" className="manager-panel-link" onClick={() => navigateTo("All Teams")}>
+                        All teams <span aria-hidden="true">→</span>
+                      </button>
+                    </div>
+                    <div className="manager-team-list">
+                      {managerOverviewTeams.slice(0, 4).map((team) => {
+                        const progress = team.totalTasks
+                          ? Math.round((team.completedTasks / team.totalTasks) * 100)
+                          : 0;
+                        return (
+                          <button
+                            type="button"
+                            key={team.id}
+                            className="manager-team-row"
+                            onClick={() => setSelectedTeamId(team.id)}
+                            aria-label={`View ${team.name}, led by ${team.lead}`}
+                          >
+                            <span className="manager-team-avatar">{team.name.split(" ").map((word) => word[0]).slice(0, 2).join("")}</span>
+                            <span className="manager-team-name">
+                              <strong>{team.name}</strong>
+                              <small>{team.members.length} members · Lead: {team.lead}</small>
+                            </span>
+                            <span className="manager-team-progress">
+                              <span className="manager-team-progress-track">
+                                <span style={{ width: `${progress}%` }} />
+                              </span>
+                              <small>{team.completedTasks}/{team.totalTasks} tasks</small>
+                            </span>
+                            <strong className="manager-team-percent">{progress}%</strong>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <section className="manager-overview-panel manager-project-status manager-quick-actions-panel" aria-label="Project status and quick actions">
+                    <div className="manager-status-actions-layout">
+                      <div className="manager-status-summary">
+                        <div className="manager-panel-heading">
+                          <div>
+                            <h3 id="manager-project-status-title">Project status</h3>
+                            <p>Current project distribution</p>
+                          </div>
+                          <button type="button" className="manager-panel-link" onClick={() => navigateTo("All Projects")}>
+                            Details <span aria-hidden="true">→</span>
+                          </button>
+                        </div>
+                        <div className="manager-project-status-content">
+                          <div
+                            className="manager-project-donut"
+                            style={{ background: managerProjectChartBackground }}
+                            role="img"
+                            aria-label={`${managerOverviewProjects.length} projects by status`}
+                          >
+                            <span><strong>{managerOverviewProjects.length}</strong><small>Projects</small></span>
+                          </div>
+                          <ul className="manager-project-legend">
+                            {managerProjectStatuses.map((item) => (
+                              <li key={item.status}>
+                                <span className="manager-project-legend-label">
+                                  <i style={{ background: item.color }} />
+                                  {item.label}
+                                </span>
+                                <strong>{item.count}</strong>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="manager-quick-actions">
+                      <div className="manager-panel-heading">
+                        <div>
+                          <h3 id="manager-quick-actions-title">Quick actions</h3>
+                          <p>Get things moving</p>
+                        </div>
+                      </div>
+                      <div className="manager-quick-action-list">
+                        <button type="button" onClick={() => setShowCreateProjectModal(true)}>
+                          <span>＋</span><strong>Create project</strong><i aria-hidden="true">→</i>
+                        </button>
+                        <button type="button" onClick={() => setShowAssignTaskModal(true)}>
+                          <span>☷</span><strong>Assign task</strong><i aria-hidden="true">→</i>
+                        </button>
+                        <button type="button" onClick={() => navigateTo("Reports")}>
+                          <span>▤</span><strong>View reports</strong><i aria-hidden="true">→</i>
+                        </button>
+                      </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="manager-overview-panel manager-recent-activity" aria-labelledby="manager-activity-title">
+                    <div className="manager-panel-heading">
+                      <div>
+                        <h3 id="manager-activity-title">Recent task activity</h3>
+                        <p>Latest updates from your workspace</p>
+                      </div>
+                      <button type="button" className="manager-panel-link" onClick={() => navigateTo("Time Tracking")}>
+                        Time logs <span aria-hidden="true">→</span>
+                      </button>
+                    </div>
+                    <div className="manager-activity-list">
+                      {managerOverviewActivity.map((log) => (
+                        <article key={log.id} className="manager-activity-item">
+                          <span className="manager-activity-avatar" aria-hidden="true">{log.userInitials}</span>
+                          <div className="manager-activity-copy">
+                            <strong>{log.user}</strong>
+                            <span>{log.activity}</span>
+                            <small>{log.task}</small>
+                          </div>
+                          <div className="manager-activity-meta">
+                            <span className={`manager-activity-event ${log.event.toLowerCase().replace(" ", "-")}`}>{log.event}</span>
+                            <time>{log.time.replace(/^Today, /, "").replace(/^Yesterday, /, "")}</time>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              ) : (
+                <>
               {/* Top Stats Cards */}
               <div className="stats-grid-row">
-                {portalRole === "admin" ? (
+                {isManager ? (
                   <>
                     <div className="metric-kpi-card green-accent">
                       <div className="kpi-top">
@@ -1928,35 +2473,53 @@ export default function App() {
                         <span className="kpi-icon">🗂</span>
                       </div>
                       <strong className="kpi-value">{projectsList.length}</strong>
-                      <small className="kpi-subtext">4 active teams participating</small>
+                      <small className="kpi-subtext">Across all managed work</small>
                     </div>
                     <div className="metric-kpi-card dark-accent">
                       <div className="kpi-top">
-                        <span>ORGANIZATION TEAMS</span>
+                        <span>TOTAL TEAMS</span>
                         <span className="kpi-icon">👥</span>
                       </div>
                       <strong className="kpi-value">{teamsList.length}</strong>
-                      <small className="kpi-subtext">11 engineers assigned</small>
+                      <small className="kpi-subtext">Project teams</small>
                     </div>
                     <div className="metric-kpi-card green-accent">
                       <div className="kpi-top">
-                        <span>ACTIVE TASKS</span>
-                        <span className="kpi-icon">✓</span>
+                        <span>TOTAL TASKS</span>
+                        <span className="kpi-icon">▤</span>
                       </div>
-                      <strong className="kpi-value">
-                        {tasks.filter((t) => t.status !== "Completed").length}
-                      </strong>
-                      <small className="kpi-subtext">Across all sprints</small>
+                      <strong className="kpi-value">{tasks.length}</strong>
+                      <small className="kpi-subtext">Across all projects</small>
                     </div>
                     <div className="metric-kpi-card dark-accent">
                       <div className="kpi-top">
-                        <span>COMPLETED TASKS</span>
-                        <span className="kpi-icon">★</span>
+                        <span>COMPLETED</span>
+                        <span className="kpi-icon">⚡</span>
                       </div>
                       <strong className="kpi-value">
-                        {tasks.filter((t) => t.status === "Completed").length + 24}
+                        {tasks.filter((task) => task.status === "Completed").length}
                       </strong>
-                      <small className="kpi-subtext">94% velocity completion</small>
+                      <small className="kpi-subtext">Tasks completed</small>
+                    </div>
+                    <div className="metric-kpi-card green-accent">
+                      <div className="kpi-top">
+                        <span>PENDING</span>
+                        <span className="kpi-icon">◷</span>
+                      </div>
+                      <strong className="kpi-value">
+                        {tasks.filter((task) => task.status === "To do").length}
+                      </strong>
+                      <small className="kpi-subtext">Waiting to start</small>
+                    </div>
+                    <div className="metric-kpi-card dark-accent">
+                      <div className="kpi-top">
+                        <span>ACTIVE TASKS</span>
+                        <span className="kpi-icon">⚡</span>
+                      </div>
+                      <strong className="kpi-value">
+                        {tasks.filter((task) => task.status === "In progress").length}
+                      </strong>
+                      <small className="kpi-subtext">Currently in progress</small>
                     </div>
                   </>
                 ) : leadWorkspace === "lead" ? (
@@ -1967,15 +2530,21 @@ export default function App() {
                         <span className="kpi-icon">🗂</span>
                       </div>
                       <strong className="kpi-value">{visibleProjects.length}</strong>
-                      <small className="kpi-subtext">Billing Platform & Analytics</small>
+                      <small className="kpi-subtext">
+                        {visibleProjects.length
+                          ? visibleProjects.map((project) => project.name).join(" & ")
+                          : "No projects assigned yet"}
+                      </small>
                     </div>
                     <div className="metric-kpi-card dark-accent">
                       <div className="kpi-top">
                         <span>TEAM MEMBERS</span>
                         <span className="kpi-icon">👥</span>
                       </div>
-                      <strong className="kpi-value">6</strong>
-                      <small className="kpi-subtext">Alpha & Analytics squads</small>
+                      <strong className="kpi-value">
+                        {visibleTeams.reduce((count, team) => count + team.members.length, 0)}
+                      </strong>
+                      <small className="kpi-subtext">{visibleTeams.length} assigned teams</small>
                     </div>
                     <div className="metric-kpi-card green-accent">
                       <div className="kpi-top">
@@ -1983,16 +2552,18 @@ export default function App() {
                         <span className="kpi-icon">⚡</span>
                       </div>
                       <strong className="kpi-value">
-                        {tasks.filter((t) => t.status === "In progress").length}
+                        {visibleTasks.filter((task) => task.status === "In progress").length}
                       </strong>
-                      <small className="kpi-subtext">On track for sprint delivery</small>
+                      <small className="kpi-subtext">Across assigned projects</small>
                     </div>
                     <div className="metric-kpi-card dark-accent">
                       <div className="kpi-top">
                         <span>PENDING REVIEWS</span>
                         <span className="kpi-icon">◷</span>
                       </div>
-                      <strong className="kpi-value">2</strong>
+                      <strong className="kpi-value">
+                        {visibleTasks.filter((task) => task.status === "Review").length}
+                      </strong>
                       <small className="kpi-subtext">Awaiting lead sign-off</small>
                     </div>
                   </>
@@ -2004,7 +2575,9 @@ export default function App() {
                         <span className="kpi-icon">✓</span>
                       </div>
                       <strong className="kpi-value">{visibleTasks.length}</strong>
-                      <small className="kpi-subtext">2 priority tasks due soon</small>
+                      <small className="kpi-subtext">
+                        {visibleTasks.filter((task) => task.priority === "High").length} high priority
+                      </small>
                     </div>
                     <div className="metric-kpi-card dark-accent">
                       <div className="kpi-top">
@@ -2021,23 +2594,27 @@ export default function App() {
                         <span>HOURS LOGGED TODAY</span>
                         <span className="kpi-icon">◷</span>
                       </div>
-                      <strong className="kpi-value">4h 25m</strong>
-                      <small className="kpi-subtext">Across 2 sprint deliverables</small>
+                      <strong className="kpi-value">
+                        {formatTimer(visibleTasks.reduce((total, task) => total + task.timeSpentSeconds, 0))}
+                      </strong>
+                      <small className="kpi-subtext">Across assigned tasks</small>
                     </div>
                     <div className="metric-kpi-card dark-accent">
                       <div className="kpi-top">
                         <span>COMPLETED SPRINTS</span>
                         <span className="kpi-icon">★</span>
                       </div>
-                      <strong className="kpi-value">12</strong>
-                      <small className="kpi-subtext">100% acceptance rate</small>
+                      <strong className="kpi-value">
+                        {visibleTasks.filter((task) => task.status === "Completed").length}
+                      </strong>
+                      <small className="kpi-subtext">Completed tasks</small>
                     </div>
                   </>
                 )}
               </div>
 
               {/* Middle Section: Quick Actions & Highlights */}
-              <div className="dashboard-grid-two-col">
+              <div className={`dashboard-grid-two-col ${isManager ? "manager-overview-panels" : ""}`}>
                 {/* Left Card: Active Focus */}
                 <div className="dash-card">
                   <div className="dash-card-header">
@@ -2051,7 +2628,7 @@ export default function App() {
                     </button>
                   </div>
                   <div className="dash-card-body">
-                    {visibleProjects.slice(0, 3).map((proj) => (
+                    {visibleProjects.slice(0, isManager ? 4 : 3).map((proj) => (
                       <div key={proj.id} className="dash-proj-row" onClick={() => setSelectedProjectId(proj.id)}>
                         <div className="dash-proj-info">
                           <strong>{proj.name}</strong>
@@ -2061,6 +2638,9 @@ export default function App() {
                           <div className="proj-progress-bar">
                             <div className="proj-progress-fill" style={{ width: `${proj.progress}%` }}></div>
                           </div>
+                          <span className={`status-badge-pill ${proj.status.toLowerCase().replace(" ", "-")}`}>
+                            {proj.status}
+                          </span>
                           <span className="proj-pct">{proj.progress}%</span>
                         </div>
                       </div>
@@ -2071,14 +2651,14 @@ export default function App() {
                 {/* Right Card: Quick Actions & Recent Tasks */}
                 <div className="dash-card">
                   <div className="dash-card-header">
-                    <h3>{portalRole === "admin" ? "Admin Quick Actions" : leadWorkspace === "lead" ? "Lead Controls" : "My Task Queue"}</h3>
-                    <button
+                    <h3>{isManager ? "Quick Actions" : leadWorkspace === "lead" ? "Lead Controls" : "My Task Queue"}</h3>
+                    {!isManager && <button
                       type="button"
                       className="dash-link-action"
                       onClick={() => navigateTo(portalRole === "admin" ? "All Tasks" : leadWorkspace === "lead" ? "Team Tasks" : "My Tasks")}
                     >
                       Task Center →
-                    </button>
+                    </button>}
                   </div>
                   <div className="dash-card-body">
                     <div className="quick-action-buttons-row">
@@ -2097,13 +2677,6 @@ export default function App() {
                             onClick={() => setShowAssignTaskModal(true)}
                           >
                             + Assign Task
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-quick-action"
-                            onClick={() => navigateTo("Team Board")}
-                          >
-                            ▤ Team Board
                           </button>
                         </>
                       )}
@@ -2152,7 +2725,7 @@ export default function App() {
                       )}
                     </div>
 
-                    <div className="recent-tasks-mini-list">
+                    {!isManager && <div className="recent-tasks-mini-list">
                       {visibleTasks.slice(0, 3).map((task) => (
                         <div
                           key={task.id}
@@ -2171,10 +2744,38 @@ export default function App() {
                           </span>
                         </div>
                       ))}
-                    </div>
+                    </div>}
                   </div>
                 </div>
               </div>
+              {isManager && (
+                <section className="dash-card manager-recent-activity" aria-labelledby="manager-activity-title">
+                  <div className="dash-card-header">
+                    <h3 id="manager-activity-title">Recent Activity</h3>
+                    <button type="button" className="dash-link-action" onClick={() => navigateTo("Time Tracking")}>
+                      View time logs →
+                    </button>
+                  </div>
+                  <div className="manager-activity-list">
+                    {timeLogs.slice(0, 4).map((log) => (
+                      <article key={log.id} className="manager-activity-item">
+                        <span className="manager-activity-avatar" aria-hidden="true">{log.userInitials}</span>
+                        <div className="manager-activity-copy">
+                          <strong>{log.user}</strong>
+                          <span>{log.activity}</span>
+                          <small>{log.task}</small>
+                        </div>
+                        <div className="manager-activity-meta">
+                          <span className={`manager-activity-event ${log.event.toLowerCase().replace(" ", "-")}`}>{log.event}</span>
+                          <time>{log.time}</time>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
+                </>
+              )}
             </div>
           )}
 
@@ -2193,18 +2794,18 @@ export default function App() {
                       onChange={(e) => setProjectSearch(e.target.value)}
                     />
                   </div>
-                  <div className="filter-pill-group">
-                    {["all", "In Progress", "Pending", "Completed"].map((st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        className={`filter-pill-btn ${projectStatusFilter === st ? "active" : ""}`}
-                        onClick={() => setProjectStatusFilter(st)}
-                      >
-                        {st === "all" ? "All Statuses" : st}
-                      </button>
-                    ))}
-                  </div>
+                  <select
+                    className="project-status-select"
+                    value={projectStatusFilter}
+                    onChange={(e) => setProjectStatusFilter(e.target.value)}
+                    aria-label="Filter projects by status"
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Not Started">Not Started</option>
+                  </select>
                 </div>
 
                 {portalRole === "admin" && (
@@ -2218,8 +2819,35 @@ export default function App() {
                 )}
               </div>
 
-              {/* GRID VIEW FOR PROJECTS */}
-              <div className="projects-grid-layout">
+              <div className="project-directory-table-wrap">
+                <table className="project-directory-table">
+                  <thead>
+                    <tr>
+                      <th>Project name</th>
+                      <th>Lead</th>
+                      <th>Teams</th>
+                      <th>Due date</th>
+                      <th>Status</th>
+                      <th aria-label="Actions" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleProjects.map((project) => (
+                      <tr key={project.id} onClick={() => setSelectedProjectId(project.id)}>
+                        <td><strong>{project.name}</strong><span>{project.description}</span></td>
+                        <td><div className="project-table-person"><img src={project.teamLeaderAvatar} alt="" /><span>{project.teamLeader}</span></div></td>
+                        <td>{project.team}</td>
+                        <td>{project.dueDate}</td>
+                        <td><span className={`status-badge-pill ${project.status.toLowerCase().replace(" ", "-")}`}>{project.status}</span></td>
+                        <td><button type="button" className="project-row-open" onClick={(e) => { e.stopPropagation(); setSelectedProjectId(project.id); }}>Open →</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* PROJECT CARDS REMOVED: PROJECT DIRECTORY NOW USES THE TABLE ABOVE */}
+              <div className="projects-grid-layout" hidden>
                 {visibleProjects.map((project) => (
                   <div key={project.id} className="project-grid-card">
                     <div className="proj-card-top-row">
@@ -2352,7 +2980,16 @@ export default function App() {
                   </select>
                 </div>
 
-                {(portalRole === "admin" || leadWorkspace === "lead") && (
+                {isManager && (
+                  <button
+                    type="button"
+                    className="btn-primary-emerald"
+                    onClick={createTeam}
+                  >
+                    + Create Team
+                  </button>
+                )}
+                {(isManager || isTeamLead) && (
                   <button
                     type="button"
                     className="btn-primary-emerald"
@@ -2433,7 +3070,16 @@ export default function App() {
                           <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
                             <div className="task-actions-right">
                               {/* Employee Interactive Timer */}
-                              {activePage === "My Tasks" && (
+                              {isEmployee && task.availableForPickup && (
+                                <button
+                                  type="button"
+                                  className="btn-table-action"
+                                  onClick={() => takeAvailableTask(task.id)}
+                                >
+                                  Take Task
+                                </button>
+                              )}
+                              {task.assignedTo === currentUser.name && (
                                 <button
                                   type="button"
                                   className={`btn-timer-toggle ${isTimerActive ? "running pulse" : ""}`}
@@ -2555,7 +3201,7 @@ export default function App() {
                         View Team Details
                       </button>
 
-                      {(portalRole === "admin" || leadWorkspace === "lead") && (
+                      {(isManager || isTeamLead) && (
                         <button
                           type="button"
                           className="btn-team-assign"
@@ -2825,13 +3471,15 @@ export default function App() {
 
               {/* Member progress metrics */}
               <div className="member-progress-cards-grid">
-                {(initialTeams[0]?.members ?? []).map((member) => (
-                  <div key={member.id} className="member-progress-card">
+                {visibleTeams.flatMap((team) =>
+                  team.members.map((member) => ({ ...member, teamName: team.name }))
+                ).map((member) => (
+                  <div key={`${member.teamName}-${member.id}`} className="member-progress-card">
                     <div className="mp-header">
                       <img src={member.avatar} alt={member.name} className="mp-avatar" />
                       <div>
                         <strong>{member.name}</strong>
-                        <small>{member.role}</small>
+                        <small>{member.role} · {member.teamName}</small>
                       </div>
                     </div>
                     <div className="mp-stats">
@@ -2864,7 +3512,9 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {timeLogs.map((log) => (
+                    {timeLogs
+                      .filter((log) => visibleTasks.some((task) => log.task.includes(task.id)))
+                      .map((log) => (
                       <tr key={log.id}>
                         <td>
                           <div className="user-initials-chip">
@@ -2885,7 +3535,155 @@ export default function App() {
             </div>
           )}
 
-          {/* 10. NOTIFICATIONS */}
+          {activePage === "Time Tracking" && (
+            <div className="time-logs-card">
+              <div className="time-logs-header">
+                <h3>{isManager ? "Project Time Tracking" : isTeamLead ? "Team Time Tracking" : "My Time Tracking"}</h3>
+                <small>
+                  {isManager
+                    ? "Time recorded across all projects."
+                    : isTeamLead
+                    ? "Time recorded for your assigned teams and your own tasks."
+                    : "Personal time recorded on your assigned tasks."}
+                </small>
+              </div>
+              <table className="time-logs-table">
+                <thead>
+                  <tr>
+                    <th>TASK</th>
+                    <th>PROJECT</th>
+                    <th>ASSIGNEE</th>
+                    <th>TIME SPENT</th>
+                    <th>STATUS</th>
+                    <th>ACTION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleTasks.map((task) => (
+                    <tr key={task.id}>
+                      <td>{task.id}: {task.title}</td>
+                      <td>{task.project}</td>
+                      <td>{task.assignedTo}</td>
+                      <td><strong>{formatTimer(task.timeSpentSeconds)}</strong></td>
+                      <td><span className="badge-event">{task.status}</span></td>
+                      <td>
+                        {task.assignedTo === currentUser.name && (
+                          <button
+                            type="button"
+                            className="btn-table-action"
+                            onClick={() => toggleTaskTimer(task.id)}
+                          >
+                            {runningTaskId === task.id ? "Pause" : "Start"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activePage === "Reports" && (
+            <div className="dashboard-content-page">
+              <div className="stats-grid-row">
+                <div className="metric-kpi-card green-accent">
+                  <div className="kpi-top"><span>PROJECTS IN SCOPE</span><span className="kpi-icon">🗂</span></div>
+                  <strong className="kpi-value">{visibleProjects.length}</strong>
+                  <small className="kpi-subtext">Projects visible to this workspace</small>
+                </div>
+                <div className="metric-kpi-card dark-accent">
+                  <div className="kpi-top"><span>TEAMS IN SCOPE</span><span className="kpi-icon">👥</span></div>
+                  <strong className="kpi-value">{visibleTeams.length}</strong>
+                  <small className="kpi-subtext">Teams visible to this workspace</small>
+                </div>
+                <div className="metric-kpi-card green-accent">
+                  <div className="kpi-top"><span>ACTIVE TASKS</span><span className="kpi-icon">⚡</span></div>
+                  <strong className="kpi-value">{visibleTasks.filter((task) => task.status === "In progress").length}</strong>
+                  <small className="kpi-subtext">Tasks currently in progress</small>
+                </div>
+                <div className="metric-kpi-card dark-accent">
+                  <div className="kpi-top"><span>COMPLETED TASKS</span><span className="kpi-icon">✓</span></div>
+                  <strong className="kpi-value">{visibleTasks.filter((task) => task.status === "Completed").length}</strong>
+                  <small className="kpi-subtext">Completed tasks in scope</small>
+                </div>
+              </div>
+              <div className="time-logs-card">
+                <div className="time-logs-header">
+                  <h3>Project Performance</h3>
+                  <small>Progress and task completion for the projects you are permitted to view.</small>
+                </div>
+                <table className="time-logs-table">
+                  <thead>
+                    <tr><th>PROJECT</th><th>TEAM</th><th>TEAM LEAD</th><th>PROGRESS</th><th>TASKS</th><th>COMPLETED</th></tr>
+                  </thead>
+                  <tbody>
+                    {visibleProjects.map((project) => {
+                      const projectTasks = visibleTasks.filter((task) => task.project === project.name);
+                      return (
+                        <tr key={project.id}>
+                          <td>{project.name}</td>
+                          <td>{project.team}</td>
+                          <td>{project.teamLeader}</td>
+                          <td>{project.progress}%</td>
+                          <td>{projectTasks.length}</td>
+                          <td>{projectTasks.filter((task) => task.status === "Completed").length}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="time-logs-card">
+                <div className="time-logs-header">
+                  <h3>Team & Employee Performance</h3>
+                  <small>Task completion and tracked time limited to teams available in this workspace.</small>
+                </div>
+                <table className="time-logs-table">
+                  <thead>
+                    <tr><th>TEAM</th><th>MEMBER</th><th>ACTIVE TASKS</th><th>COMPLETED</th><th>TIME TRACKED</th></tr>
+                  </thead>
+                  <tbody>
+                    {visibleTeams.flatMap((team) =>
+                      team.members.map((member) => {
+                        const memberTasks = visibleTasks.filter(
+                          (task) => task.project === team.project && task.assignedTo === member.name
+                        );
+                        const trackedSeconds = memberTasks.reduce(
+                          (total, task) => total + task.timeSpentSeconds,
+                          0
+                        );
+                        return (
+                          <tr key={`${team.id}-${member.id}`}>
+                            <td>{team.name}</td>
+                            <td>{member.name}</td>
+                            <td>{memberTasks.filter((task) => task.status !== "Completed").length}</td>
+                            <td>{memberTasks.filter((task) => task.status === "Completed").length}</td>
+                            <td>{formatTimer(trackedSeconds)}</td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activePage === "Settings" && (
+            <div className="dash-card">
+              <div className="dash-card-header"><h3>Profile & Workspace Settings</h3></div>
+              <div className="dash-card-body">
+                <p><strong>Name:</strong> {currentUser.name}</p>
+                <p><strong>Email:</strong> {currentUser.email}</p>
+                <p><strong>Active workspace:</strong> {workspaceLabel(activeWorkspace)}</p>
+                <p><strong>Available workspaces:</strong> {availableWorkspaces.map(workspaceLabel).join(", ")}</p>
+                <p>Workspace switching and role access are based on the workspaces selected for this account.</p>
+              </div>
+            </div>
+          )}
+
+          {/* NOTIFICATIONS */}
           {activePage === "Notifications" && (
             <div className="notifications-page">
               <div className="notifications-container-card">
@@ -3031,12 +3829,12 @@ export default function App() {
                     <option value="Not Started">Not Started</option>
                   </select>
                 </div>
-              </div>
+                </div>
 
-              <div className="modal-actions-footer">
-                <button
-                  type="button"
-                  className="btn-modal-cancel"
+                <div className="modal-actions-footer">
+                  <button
+                    type="button"
+                    className="btn-modal-cancel"
                   onClick={() => setShowCreateProjectModal(false)}
                 >
                   Cancel
@@ -3052,8 +3850,8 @@ export default function App() {
 
       {/* ASSIGN TASK MODAL (ADMIN & LEAD) */}
       {showAssignTaskModal && (
-        <div className="modal-overlay" onClick={() => setShowAssignTaskModal(false)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+        <section className="workspace-page-view assign-task-page-view" aria-label="Assign task">
+          <div className="workspace-page-view-body">
             <div className="modal-header">
               <h3>Assign New Task</h3>
               <button type="button" className="close-btn" onClick={() => setShowAssignTaskModal(false)}>×</button>
@@ -3076,9 +3874,18 @@ export default function App() {
                   <label>Select Project *</label>
                   <select
                     value={newTaskProject}
-                    onChange={(e) => setNewTaskProject(e.target.value)}
+                    onChange={(e) => {
+                      const projectName = e.target.value;
+                      setNewTaskProject(projectName);
+                      if (isTeamLead) {
+                        const firstTeamMember = teamsList
+                          .find((team) => team.project === projectName)
+                          ?.members[0]?.name;
+                        if (firstTeamMember) setNewTaskAssignee(firstTeamMember);
+                      }
+                    }}
                   >
-                    {projectsList.map((p) => (
+                    {(isManager ? projectsList : visibleProjects).map((p) => (
                       <option key={p.id} value={p.name}>{p.name}</option>
                     ))}
                   </select>
@@ -3090,12 +3897,9 @@ export default function App() {
                     value={newTaskAssignee}
                     onChange={(e) => setNewTaskAssignee(e.target.value)}
                   >
-                    <option value="Rahul Varma">Rahul Varma (Frontend Dev)</option>
-                    <option value="Sneha Rao">Sneha Rao (Backend Dev)</option>
-                    <option value="Alex Morgan">Alex Morgan (QA Dev)</option>
-                    <option value="Vikram Malhotra">Vikram Malhotra (Mobile Dev)</option>
-                    <option value="Daniel Lee">Daniel Lee (Ops Specialist)</option>
-                    <option value="Chloe Bennett">Chloe Bennett (Data Analyst)</option>
+                    {assignableTaskMembers.map((memberName) => (
+                      <option key={memberName} value={memberName}>{memberName}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -3146,13 +3950,13 @@ export default function App() {
               </div>
             </form>
           </div>
-        </div>
+        </section>
       )}
 
       {/* PROJECT DETAILS MODAL */}
       {selectedProjectObj && (
-        <div className="modal-overlay" onClick={() => setSelectedProjectId(null)}>
-          <div className="modal-dialog large" onClick={(e) => e.stopPropagation()}>
+        <section className="workspace-page-view project-detail-page-view" aria-label="Project details">
+          <div className="project-detail-page-view-body">
             <div className="modal-header">
               <div>
                 <span className="modal-sub-tag">{selectedProjectObj.team}</span>
@@ -3162,67 +3966,184 @@ export default function App() {
             </div>
 
             <div className="modal-body-scroll">
-              <p className="modal-description-lead">{selectedProjectObj.description}</p>
-
-              <div className="project-detail-stats-grid">
-                <div className="stat-box">
-                  <span>TEAM LEAD</span>
-                  <div className="lead-stat-chip">
-                    <img src={selectedProjectObj.teamLeaderAvatar} alt={selectedProjectObj.teamLeader} />
-                    <strong>{selectedProjectObj.teamLeader}</strong>
-                  </div>
-                </div>
-
-                <div className="stat-box">
-                  <span>OVERALL PROGRESS</span>
-                  <strong>{selectedProjectObj.progress}%</strong>
-                  <div className="progress-track">
-                    <div className="progress-fill-emerald" style={{ width: `${selectedProjectObj.progress}%` }}></div>
-                  </div>
-                </div>
-
-                <div className="stat-box">
-                  <span>TIMELINE</span>
-                  <strong>Due: {selectedProjectObj.dueDate}</strong>
-                  <small>Started: {selectedProjectObj.startDate}</small>
-                </div>
-
-                <div className="stat-box">
-                  <span>STATUS</span>
-                  <span className={`status-badge-pill ${selectedProjectObj.status.toLowerCase().replace(" ", "-")}`}>
-                    {selectedProjectObj.status}
-                  </span>
-                </div>
-              </div>
-
-              <h4 className="detail-section-title">Assigned Team Members</h4>
-              <div className="detail-members-row">
-                {selectedProjectObj.members.map((name, i) => (
-                  <div key={i} className="detail-member-pill">
-                    <span className="detail-member-avatar-char">{name.charAt(0)}</span>
-                    <span>{name}</span>
-                  </div>
-                ))}
-              </div>
-
-              <h4 className="detail-section-title">Tasks in this Project</h4>
-              <div className="detail-tasks-mini-table">
-                {tasks
-                  .filter((t) => t.project === selectedProjectObj.name)
-                  .map((t) => (
-                    <div key={t.id} className="detail-task-row">
-                      <span className="task-id-tag">{t.id}</span>
-                      <strong>{t.title}</strong>
-                      <span>Assignee: {t.assignedTo}</span>
-                      <span className={`status-badge-pill ${t.status.toLowerCase().replace(" ", "-")}`}>
-                        {t.status}
-                      </span>
+              <div className="project-detail-page-grid">
+                <div className="project-detail-main-column">
+                  <section className="project-detail-summary-card">
+                    <p className="modal-description-lead">{selectedProjectObj.description}</p>
+                    <div className="project-detail-stats-grid">
+                      <div className="stat-box">
+                        <span>TEAM LEAD</span>
+                        <div className="lead-stat-chip">
+                          <img src={selectedProjectObj.teamLeaderAvatar} alt={selectedProjectObj.teamLeader} />
+                          <strong>{selectedProjectObj.teamLeader}</strong>
+                        </div>
+                      </div>
+                      <div className="stat-box">
+                        <span>OVERALL PROGRESS</span>
+                        <strong>{selectedProjectObj.progress}%</strong>
+                        <div className="progress-track">
+                          <div className="progress-fill-emerald" style={{ width: `${selectedProjectObj.progress}%` }}></div>
+                        </div>
+                      </div>
+                      <div className="stat-box">
+                        <span>TIMELINE</span>
+                        <strong>Due: {selectedProjectObj.dueDate}</strong>
+                        <small>Started: {selectedProjectObj.startDate}</small>
+                      </div>
+                      <div className="stat-box">
+                        <span>STATUS</span>
+                        <span className={`status-badge-pill ${selectedProjectObj.status.toLowerCase().replace(" ", "-")}`}>
+                          {selectedProjectObj.status}
+                        </span>
+                      </div>
                     </div>
-                  ))}
+                  </section>
+
+                  <h4 className="detail-section-title">Tasks in this Project</h4>
+                  <div className="detail-tasks-mini-table">
+                    {tasks.filter((t) => t.project === selectedProjectObj.name).map((t) => (
+                      <div key={t.id} className="detail-task-row">
+                        <span className="task-id-tag">{t.id}</span>
+                        <strong>{t.title}</strong>
+                        <span>Assignee: {t.assignedTo}</span>
+                        <span className={`status-badge-pill ${t.status.toLowerCase().replace(" ", "-")}`}>{t.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <aside className="project-detail-members-column">
+                  <div className="project-members-heading">
+                    <div>
+                      <h4>Team members</h4>
+                      <span>{selectedProjectObj.members.length} members</span>
+                    </div>
+                    <button type="button" className="btn-primary-emerald" onClick={() => setProjectMemberSearch("")}>+ Add team member</button>
+                  </div>
+                  <div className="search-box-input project-member-search">
+                    <span className="search-icon">⌕</span>
+                    <input
+                      type="search"
+                      placeholder="Search member name or email"
+                      value={projectMemberSearch}
+                      onChange={(e) => setProjectMemberSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="project-member-directory">
+                    {teamsList.flatMap((team) => team.members).filter((member, index, all) => all.findIndex((candidate) => candidate.name === member.name) === index).filter((member) => {
+                      const query = projectMemberSearch.trim().toLowerCase();
+                      return !query || member.name.toLowerCase().includes(query) || member.email.toLowerCase().includes(query);
+                    }).map((member) => {
+                      const assigned = selectedProjectObj.members.includes(member.name);
+                      return (
+                        <div className="project-member-row" key={member.id}>
+                          <span className="detail-member-avatar-char">{member.name.charAt(0)}</span>
+                          <div><strong>{member.name}</strong><span>{member.email}</span></div>
+                          {assigned ? (
+                            <button type="button" onClick={() => setShowAssignTaskModal(true)}>Assign task</button>
+                          ) : (
+                            <button type="button" onClick={() => setProjectsList((previous) => previous.map((project) => project.id === selectedProjectObj.id ? { ...project, members: [...project.members, member.name] } : project))}>Add</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </aside>
               </div>
             </div>
 
             <div className="modal-actions-footer">
+              {isManager && (
+                <>
+                  <button
+                    type="button"
+                    className="btn-modal-cancel"
+                    onClick={() => {
+                      const name = window.prompt("Project name:", selectedProjectObj.name)?.trim();
+                      if (!name) return;
+                      const description = window.prompt(
+                        "Project description:",
+                        selectedProjectObj.description
+                      );
+                      if (description === null) return;
+                      const status = window.prompt(
+                        "Project status (In Progress, Pending, Completed, Not Started):",
+                        selectedProjectObj.status
+                      );
+                      if (status === null) return;
+                      const statuses: ProjectItem["status"][] = [
+                        "In Progress",
+                        "Pending",
+                        "Completed",
+                        "Not Started",
+                      ];
+                      const validStatus = statuses.find((candidate) => candidate === status);
+                      if (!validStatus) {
+                        setNotice("Enter a valid project status.");
+                        return;
+                      }
+                      const dueDate = window.prompt("Project due date:", selectedProjectObj.dueDate);
+                      if (dueDate === null) return;
+                      setProjectsList((previous) =>
+                        previous.map((project) =>
+                          project.id === selectedProjectObj.id
+                            ? {
+                                ...project,
+                                name,
+                                description: description.trim(),
+                                status: validStatus,
+                                dueDate: dueDate.trim(),
+                              }
+                            : project
+                        )
+                      );
+                      setTasks((previous) =>
+                        previous.map((task) =>
+                          task.project === selectedProjectObj.name
+                            ? { ...task, project: name, projectCode: name.charAt(0).toUpperCase() }
+                            : task
+                        )
+                      );
+                      setTeamsList((previous) =>
+                        previous.map((team) =>
+                          team.project === selectedProjectObj.name
+                            ? { ...team, project: name }
+                            : team
+                        )
+                      );
+                      setNotice(`Project "${name}" updated.`);
+                    }}
+                  >
+                    Edit Project
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-modal-cancel"
+                    onClick={() => {
+                      if (!window.confirm(`Delete "${selectedProjectObj.name}" and its tasks/teams?`)) return;
+                      setProjectsList((previous) =>
+                        previous.filter((project) => project.id !== selectedProjectObj.id)
+                      );
+                      setTeamsList((previous) =>
+                        previous.filter((team) => team.project !== selectedProjectObj.name)
+                      );
+                      setTasks((previous) =>
+                        previous.filter((task) => task.project !== selectedProjectObj.name)
+                      );
+                      if (
+                        tasks.some(
+                          (task) => task.id === runningTaskId && task.project === selectedProjectObj.name
+                        )
+                      ) {
+                        setRunningTaskId(null);
+                      }
+                      setSelectedProjectId(null);
+                      setNotice(`Project "${selectedProjectObj.name}" and its related data were deleted.`);
+                    }}
+                  >
+                    Delete Project
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 className="btn-modal-cancel"
@@ -3232,7 +4153,7 @@ export default function App() {
               </button>
             </div>
           </div>
-        </div>
+        </section>
       )}
 
       {/* TASK DETAILS MODAL */}
@@ -3248,22 +4169,125 @@ export default function App() {
             </div>
 
             <div className="modal-body-scroll">
-              <p className="modal-description-lead">{selectedTaskObj.description}</p>
+            {(isManager || isTeamLead) && canManageTask(selectedTaskObj) && (
+              <div className="form-group">
+                <label>Task title</label>
+                <input
+                  type="text"
+                  value={selectedTaskObj.title}
+                  onChange={(e) =>
+                    setTasks((previous) =>
+                      previous.map((task) =>
+                        task.id === selectedTaskObj.id
+                          ? { ...task, title: e.target.value }
+                          : task
+                      )
+                    )
+                  }
+                />
+              </div>
+            )}
+            <p className="modal-description-lead">{selectedTaskObj.description}</p>
+
+              {(isManager || isTeamLead) && canManageTask(selectedTaskObj) && (
+                <div className="form-group">
+                  <label>Task description</label>
+                  <textarea
+                    rows={3}
+                    value={selectedTaskObj.description}
+                    onChange={(e) =>
+                      setTasks((previous) =>
+                        previous.map((task) =>
+                          task.id === selectedTaskObj.id
+                            ? { ...task, description: e.target.value }
+                            : task
+                        )
+                      )
+                    }
+                  />
+                </div>
+              )}
+              {isEmployee && selectedTaskObj.assignedTo === currentUser.name && (
+                <div className="form-group">
+                  <label>My task notes</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Record your progress or changes..."
+                    value={selectedTaskObj.changesDescription || ""}
+                    onChange={(e) =>
+                      setTasks((previous) =>
+                        previous.map((task) =>
+                          task.id === selectedTaskObj.id
+                            ? { ...task, changesDescription: e.target.value }
+                            : task
+                        )
+                      )
+                    }
+                  />
+                </div>
+              )}
 
               <div className="task-detail-meta-grid">
                 <div>
                   <label>Assignee</label>
-                  <div className="meta-assignee-box">
-                    <img src={selectedTaskObj.assignedToAvatar} alt={selectedTaskObj.assignedTo} className="avatar-mini" />
-                    <strong>{selectedTaskObj.assignedTo}</strong>
-                  </div>
+                  {(isManager || isTeamLead) && canManageTask(selectedTaskObj) ? (
+                    <select
+                      value={selectedTaskObj.assignedTo}
+                      onChange={(e) => {
+                        const name = e.target.value;
+                        const member = teamsList
+                          .flatMap((team) => team.members)
+                          .find((candidate) => candidate.name === name);
+                        const lead = teamsList.find((team) => team.lead === name);
+                        setTasks((previous) =>
+                          previous.map((task) =>
+                            task.id === selectedTaskObj.id
+                              ? {
+                                  ...task,
+                                  assignedTo: name,
+                                  assignedToAvatar: member?.avatar || lead?.leadAvatar || task.assignedToAvatar,
+                                }
+                              : task
+                          )
+                        );
+                      }}
+                    >
+                      {[...new Set([...selectedTaskAssignees, selectedTaskObj.assignedTo])].map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="meta-assignee-box">
+                      <img src={selectedTaskObj.assignedToAvatar} alt={selectedTaskObj.assignedTo} className="avatar-mini" />
+                      <strong>{selectedTaskObj.assignedTo}</strong>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label>Priority</label>
-                  <span className={`priority-badge ${selectedTaskObj.priority.toLowerCase()}`}>
-                    {selectedTaskObj.priority}
-                  </span>
+                  {(isManager || isTeamLead) && canManageTask(selectedTaskObj) ? (
+                    <select
+                      value={selectedTaskObj.priority}
+                      onChange={(e) =>
+                        setTasks((previous) =>
+                          previous.map((task) =>
+                            task.id === selectedTaskObj.id
+                              ? { ...task, priority: e.target.value as Task["priority"] }
+                              : task
+                          )
+                        )
+                      }
+                    >
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  ) : (
+                    <span className={`priority-badge ${selectedTaskObj.priority.toLowerCase()}`}>
+                      {selectedTaskObj.priority}
+                    </span>
+                  )}
                 </div>
 
                 <div>
@@ -3271,6 +4295,7 @@ export default function App() {
                   <select
                     className="select-status-inline"
                     value={selectedTaskObj.status}
+                    disabled={!canManageTask(selectedTaskObj)}
                     onChange={(e) => {
                       const newStatus = e.target.value as Task["status"];
                       setTasks((prev) =>
@@ -3293,6 +4318,7 @@ export default function App() {
                     <button
                       type="button"
                       className="btn-inline-timer-toggle"
+                      disabled={selectedTaskObj.assignedTo !== currentUser.name}
                       onClick={() => toggleTaskTimer(selectedTaskObj.id)}
                     >
                       {runningTaskId === selectedTaskObj.id ? "⏸ Pause" : "▶ Start"}
@@ -3300,6 +4326,25 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {(isManager || isTeamLead) && canManageTask(selectedTaskObj) && (
+                <div className="form-group">
+                  <label>Due date</label>
+                  <input
+                    type="text"
+                    value={selectedTaskObj.due}
+                    onChange={(e) =>
+                      setTasks((previous) =>
+                        previous.map((task) =>
+                          task.id === selectedTaskObj.id
+                            ? { ...task, due: e.target.value }
+                            : task
+                        )
+                      )
+                    }
+                  />
+                </div>
+              )}
 
               {/* Acceptance Checklist */}
               <h4 className="detail-section-title">Acceptance Checklist</h4>
@@ -3309,6 +4354,7 @@ export default function App() {
                     <input
                       type="checkbox"
                       checked={chk.completed}
+                      disabled={!canManageTask(selectedTaskObj)}
                       onChange={() => {
                         setTasks((prev) =>
                           prev.map((t) =>
@@ -3328,6 +4374,26 @@ export default function App() {
                   </label>
                 ))}
               </div>
+
+              {(isManager || selectedTaskObj.assignedTo === currentUser.name) && (
+                <div className="form-group">
+                  <label>Completion notes</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Describe the work completed..."
+                    value={selectedTaskObj.completionNotes || ""}
+                    onChange={(e) =>
+                      setTasks((previous) =>
+                        previous.map((task) =>
+                          task.id === selectedTaskObj.id
+                            ? { ...task, completionNotes: e.target.value }
+                            : task
+                        )
+                      )
+                    }
+                  />
+                </div>
+              )}
             </div>
 
             <div className="modal-actions-footer">
@@ -3338,19 +4404,45 @@ export default function App() {
               >
                 Close
               </button>
-              <button
-                type="button"
-                className="btn-modal-submit"
-                onClick={() => {
-                  setTasks((prev) =>
-                    prev.map((t) => (t.id === selectedTaskObj.id ? { ...t, status: "Completed" } : t))
-                  );
-                  setNotice(`Task ${selectedTaskObj.id} marked as Completed!`);
-                  setSelectedTaskId(null);
-                }}
-              >
-                Mark Complete ✓
-              </button>
+              {isManager && (
+                <button
+                  type="button"
+                  className="btn-modal-cancel"
+                  onClick={() => {
+                    if (!window.confirm(`Delete task ${selectedTaskObj.id}?`)) return;
+                    setTasks((previous) =>
+                      previous.filter((task) => task.id !== selectedTaskObj.id)
+                    );
+                    setSelectedTaskId(null);
+                    setNotice(`Task ${selectedTaskObj.id} deleted.`);
+                  }}
+                >
+                  Delete Task
+                </button>
+              )}
+              {(isManager || selectedTaskObj.assignedTo === currentUser.name) && (
+                <button
+                  type="button"
+                  className="btn-modal-submit"
+                  onClick={() => {
+                    if (!isManager && !selectedTaskObj.completionNotes?.trim()) {
+                      setNotice("Add completion notes before completing this task.");
+                      return;
+                    }
+                    setTasks((previous) =>
+                      previous.map((task) =>
+                        task.id === selectedTaskObj.id
+                          ? { ...task, status: "Completed" }
+                          : task
+                      )
+                    );
+                    setNotice(`Task ${selectedTaskObj.id} marked as Completed.`);
+                    setSelectedTaskId(null);
+                  }}
+                >
+                  Mark Complete ✓
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -3381,6 +4473,24 @@ export default function App() {
               </div>
 
               <h4 className="detail-section-title">All Team Members & Task Loads</h4>
+              {isManager && (
+                <div className="view-action-bar">
+                  <button
+                    type="button"
+                    className="btn-team-secondary"
+                    onClick={() => addTeamMember(selectedTeamObj)}
+                  >
+                    + Add Member
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-team-secondary"
+                    onClick={() => changeTeamLead(selectedTeamObj)}
+                  >
+                    Change Team Lead
+                  </button>
+                </div>
+              )}
               <table className="team-members-table">
                 <thead>
                   <tr>
@@ -3389,6 +4499,7 @@ export default function App() {
                     <th>EMAIL</th>
                     <th>STATUS</th>
                     <th>ACTIVE TASKS</th>
+                    {isManager && <th>ACTIONS</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -3410,6 +4521,17 @@ export default function App() {
                       <td>
                         <strong>{member.activeTasks} tasks</strong>
                       </td>
+                      {isManager && (
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-table-action"
+                            onClick={() => removeTeamMember(selectedTeamObj, member)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -3424,7 +4546,7 @@ export default function App() {
               >
                 Close
               </button>
-              {(portalRole === "admin" || leadWorkspace === "lead") && (
+              {(isManager || isTeamLead) && (
                 <button
                   type="button"
                   className="btn-modal-submit"

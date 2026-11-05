@@ -3,7 +3,6 @@ import type { FormEvent } from "react";
 import {
   BarChart3,
   Bell,
-  Clock3,
   FolderKanban,
   LayoutDashboard,
   ListTodo,
@@ -148,7 +147,6 @@ export type PageName =
 
 export type AuthStep =
   | "welcome"
-  | "portal-select"
   | "signin"
   | "signup-profile"
   | "verify-email"
@@ -859,7 +857,6 @@ export default function App() {
 
   // Navigation & Search
   const [activePage, setActivePage] = useState<PageName>("Dashboard");
-  const [pageHistory, setPageHistory] = useState<PageName[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
 
   // Visual Atmosphere
@@ -878,14 +875,19 @@ export default function App() {
   // Active Chats
   const [activeChannelId, setActiveChannelId] = useState<string>("alpha-engineering");
   const [chatInputText, setChatInputText] = useState<string>("");
+  const [chatAttachmentMenuOpen, setChatAttachmentMenuOpen] = useState(false);
+  const [chatPendingAttachment, setChatPendingAttachment] = useState("");
   const [activeDmContactId, setActiveDmContactId] = useState<string>("arun-patel");
   const [dmInputText, setDmInputText] = useState<string>("");
+  const [dmAttachmentMenuOpen, setDmAttachmentMenuOpen] = useState(false);
+  const [dmPendingAttachment, setDmPendingAttachment] = useState("");
 
   // Modals & Drawers
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState<boolean>(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showAssignTaskModal, setShowAssignTaskModal] = useState<boolean>(false);
+  const [assignTaskProjectId, setAssignTaskProjectId] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
   // Filter States
@@ -1012,25 +1014,33 @@ export default function App() {
     if (isManager) {
       return [
         { label: "Overview", icon: <LayoutDashboard size={18} />, destination: "Dashboard" as PageName },
-        { label: "Project", icon: <FolderKanban size={18} />, destination: "All Projects" as PageName },
-        { label: "Team", icon: <UsersRound size={18} />, destination: "All Teams" as PageName },
-        { label: "Tasks", icon: <ListTodo size={18} />, destination: "All Tasks" as PageName },
-        { label: "Time Logs", icon: <Clock3 size={18} />, destination: "Time Tracking" as PageName },
+        { label: "Project", icon: <FolderKanban size={18} />, destination: projectPage },
+        { label: "Team", icon: <UsersRound size={18} />, destination: teamsPage },
+        { label: "Task", icon: <ListTodo size={18} />, destination: tasksPage },
+        { label: "Team Board", icon: <BarChart3 size={18} />, destination: "Team Board" as PageName },
         { label: "Team Chat", icon: <MessagesSquare size={18} />, destination: "Group Chat" as PageName },
-        { label: "Direct Messages", icon: <MessageCircle size={18} />, destination: "Direct Chat" as PageName },
-        { label: "Reports", icon: <BarChart3 size={18} />, destination: "Reports" as PageName },
+        { label: "Direct Message", icon: <MessageCircle size={18} />, destination: "Direct Chat" as PageName },
         { label: "Notification", icon: <Bell size={18} />, destination: "Notifications" as PageName },
       ];
     }
+    if (isTeamLead) {
+      return [
+        { label: "Overview", icon: <LayoutDashboard size={18} />, destination: "Dashboard" as PageName },
+        { label: "Projects", icon: <FolderKanban size={18} />, destination: projectPage },
+        { label: "Teams", icon: <UsersRound size={18} />, destination: teamsPage },
+        { label: "Tasks", icon: <ListTodo size={18} />, destination: tasksPage },
+        { label: "Team Chat", icon: <MessagesSquare size={18} />, destination: "Group Chat" as PageName },
+        { label: "Direct Message", icon: <MessageCircle size={18} />, destination: "Direct Chat" as PageName },
+        { label: "Notifications", icon: <Bell size={18} />, destination: "Notifications" as PageName },
+      ];
+    }
     return [
-      { label: "Dashboard", icon: "▦", destination: "Dashboard" as PageName },
-      { label: "Projects", icon: "🗂", destination: projectPage },
-      { label: "Teams & Members", icon: "👥", destination: teamsPage },
-      { label: "Tasks", icon: "✓", destination: tasksPage },
-      { label: "Time Tracking", icon: "◷", destination: "Time Tracking" as PageName },
-      { label: "Communication", icon: "💬", destination: "Group Chat" as PageName },
-      { label: "Reports", icon: "📈", destination: "Reports" as PageName },
-      { label: "Settings", icon: "⚙", destination: "Settings" as PageName },
+      { label: "Overview", icon: <LayoutDashboard size={18} />, destination: "Dashboard" as PageName },
+      { label: "My Tasks", icon: <ListTodo size={18} />, destination: tasksPage },
+      { label: "Team Board", icon: <BarChart3 size={18} />, destination: "Team Board" as PageName },
+      { label: "Team Chat", icon: <MessagesSquare size={18} />, destination: "Group Chat" as PageName },
+      { label: "Direct Message", icon: <MessageCircle size={18} />, destination: "Direct Chat" as PageName },
+      { label: "Notification", icon: <Bell size={18} />, destination: "Notifications" as PageName },
     ];
   }, [isManager, isTeamLead]);
 
@@ -1180,7 +1190,6 @@ export default function App() {
     setPortalRole(workspace === "admin" ? "admin" : "lead_employee");
     if (workspace !== "admin") setLeadWorkspace(workspace);
     setActivePage("Dashboard");
-    setPageHistory([]);
     setProfileOpen(false);
     setRunningTaskId(null);
     setSelectedProjectId(null);
@@ -1198,19 +1207,13 @@ export default function App() {
       return;
     }
     if (page === activePage) return;
-    setPageHistory((prev) => [...prev, activePage]);
+    setSelectedProjectId(null);
+    setSelectedTeamId(null);
+    setAssignTaskProjectId(null);
+    setShowAssignTaskModal(false);
+    setSelectedTaskId(null);
     setActivePage(page);
     setProfileOpen(false);
-  };
-
-  const goBack = () => {
-    if (pageHistory.length > 0) {
-      const previous = pageHistory[pageHistory.length - 1];
-      setPageHistory((prev) => prev.slice(0, -1));
-      if (previous) setActivePage(previous);
-    } else if (activePage !== "Dashboard") {
-      setActivePage("Dashboard");
-    }
   };
 
   const logout = () => {
@@ -1223,7 +1226,6 @@ export default function App() {
     setPassword("123456");
     setSignedInAccount(null);
     setActivePage("Dashboard");
-    setPageHistory([]);
     setNotice("");
     setRunningTaskId(null);
   };
@@ -1252,7 +1254,6 @@ export default function App() {
       setLeadWorkspace("lead");
       setIsLoggedIn(true);
       setActivePage("Dashboard");
-      setPageHistory([]);
       setNotice("");
       return;
     }
@@ -1268,26 +1269,13 @@ export default function App() {
       }
       setSignedInAccount(registeredAccount);
       setAvailableWorkspaces(registeredAccount.workspaces);
-      const firstWorkspace = registeredAccount.workspaces[0];
+      const firstWorkspace = registeredAccount.workspaces[0] ?? "admin";
       setPortalRole(firstWorkspace === "admin" ? "admin" : "lead_employee");
       if (firstWorkspace !== "admin") setLeadWorkspace(firstWorkspace);
     } else {
       setNotice("Those credentials are not recognized. Use abc@gmail.com / 123456 for the demo.");
       return;
     }
-    setIsLoggedIn(true);
-    setActivePage("Dashboard");
-    setNotice("");
-  };
-
-  // Quick Demo Login
-  const loginAsDemo = (role: PortalRole, ws: LeadWorkspace = "lead", id: string = "") => {
-    setPortalRole(role);
-    setLeadWorkspace(ws);
-    setAvailableWorkspaces(role === "admin" ? ["admin"] : ["lead", "employee"]);
-    setSignedInAccount(null);
-    setLoginId(id);
-    setPassword("demo123");
     setIsLoggedIn(true);
     setActivePage("Dashboard");
     setNotice("");
@@ -1424,6 +1412,7 @@ export default function App() {
     };
     setTasks((prev) => [createdTask, ...prev]);
     setShowAssignTaskModal(false);
+    setAssignTaskProjectId(null);
     setNewTaskTitle("");
     setNewTaskDesc("");
     setNotice(`Task ${createdTask.id} assigned to ${newTaskAssignee}.`);
@@ -1544,12 +1533,12 @@ export default function App() {
   // Send Group Chat Message
   const handleSendChatMessage = (e: FormEvent) => {
     e.preventDefault();
-    if (!chatInputText.trim()) return;
+    if (!chatInputText.trim() && !chatPendingAttachment) return;
     const msg: ChatMessage = {
       id: `cm-${Date.now()}`,
       sender: currentUser.name,
       senderInitials: currentUser.initials,
-      text: chatInputText.trim(),
+      text: chatPendingAttachment ? `${chatInputText.trim()}${chatInputText.trim() ? "  " : ""}${chatPendingAttachment}` : chatInputText.trim(),
       time: "Just now",
       isSelf: true,
     };
@@ -1558,17 +1547,19 @@ export default function App() {
       [activeChannelId]: [...(prev[activeChannelId] || []), msg],
     }));
     setChatInputText("");
+    setChatPendingAttachment("");
+    setChatAttachmentMenuOpen(false);
   };
 
   // Send Direct Message
   const handleSendDirectMessage = (e: FormEvent) => {
     e.preventDefault();
-    if (!dmInputText.trim()) return;
+    if (!dmInputText.trim() && !dmPendingAttachment) return;
     const msg: ChatMessage = {
       id: `dm-${Date.now()}`,
       sender: currentUser.name,
       senderInitials: currentUser.initials,
-      text: dmInputText.trim(),
+      text: dmPendingAttachment ? `${dmInputText.trim()}${dmInputText.trim() ? "  " : ""}${dmPendingAttachment}` : dmInputText.trim(),
       time: "Just now",
       isSelf: true,
     };
@@ -1577,6 +1568,8 @@ export default function App() {
       [activeDmContactId]: [...(prev[activeDmContactId] || []), msg],
     }));
     setDmInputText("");
+    setDmPendingAttachment("");
+    setDmAttachmentMenuOpen(false);
   };
 
   // Task Selected for View Details
@@ -1597,34 +1590,6 @@ export default function App() {
       ? assignableTaskMembers
       : teamsList.find((team) => team.project === selectedTaskObj.project)?.members.map((member) => member.name) || []
     : [];
-  const managerOverviewActivity = timeLogs.slice(0, 4);
-  const managerOverviewProjects = projectsList;
-  const managerOverviewTeams = teamsList;
-  const managerCompletedTasks = teamsList.reduce((total, team) => total + team.completedTasks, 0);
-  const managerTotalTeamTasks = teamsList.reduce((total, team) => total + team.totalTasks, 0);
-  const managerCompletionRate = managerTotalTeamTasks
-    ? Math.round((managerCompletedTasks / managerTotalTeamTasks) * 100)
-    : 0;
-  const managerProjectStatuses = [
-    { label: "In progress", status: "In Progress", color: "var(--manager-chart-progress)" },
-    { label: "Completed", status: "Completed", color: "var(--manager-chart-complete)" },
-    { label: "Pending", status: "Pending", color: "var(--manager-chart-pending)" },
-    { label: "Not started", status: "Not Started", color: "var(--manager-chart-not-started)" },
-  ].map((item) => ({
-    ...item,
-    count: managerOverviewProjects.filter((project) => project.status === item.status).length,
-  }));
-  const managerProjectTotal = Math.max(managerOverviewProjects.length, 1);
-  const managerProjectStatusStops: string[] = [];
-  let managerProjectStatusOffset = 0;
-  managerProjectStatuses.forEach((item) => {
-    const nextOffset = managerProjectStatusOffset + (item.count / managerProjectTotal) * 100;
-    managerProjectStatusStops.push(`${item.color} ${managerProjectStatusOffset}% ${nextOffset}%`);
-    managerProjectStatusOffset = nextOffset;
-  });
-  const managerProjectChartBackground = managerOverviewProjects.length
-    ? `conic-gradient(${managerProjectStatusStops.join(", ")})`
-    : "conic-gradient(#e9e4f2 0% 100%)";
 
   // -------------------------------------------------------------
   // RENDER: AUTH / LOGIN FLOW
@@ -1650,7 +1615,7 @@ export default function App() {
             <div>
               <strong>WORK FLOW</strong>
               <small>ENTERPRISE MANAGEMENT</small>
-            </div>
+              </div>
           </div>
           <div className="brand-message">
             <span className="brand-eyebrow">WORK FLOW PLATFORM</span>
@@ -1678,7 +1643,7 @@ export default function App() {
           </div>
           <div className="brand-footer">
             <span>Work Flow © 2026</span>
-          </div>
+        </div>
         </section>
 
         {authStep !== "welcome" && (
@@ -1686,20 +1651,14 @@ export default function App() {
             <div className="auth-card">
               <div className="auth-card-header">
                 <span className="auth-tag">
-                  {authStep === "portal-select"
-                    ? "CHOOSE YOUR ROLE"
-                    : authStep === "signup-profile" || authStep === "verify-email" || authStep === "signup-credentials"
+                  {authStep === "signup-profile" || authStep === "verify-email" || authStep === "signup-credentials"
                     ? "GET STARTED"
                     : authStep === "signin"
                     ? "SIGN IN"
-                    : portalRole === "admin"
-                    ? "MANAGER WORKSPACE"
-                    : "TEAM LEAD / EMPLOYEE"}
+                    : "RESET PASSWORD"}
                 </span>
                 <h2>
-                  {authStep === "portal-select"
-                    ? "Who are you?"
-                    : authStep === "signin"
+                  {authStep === "signin"
                     ? "Welcome Back"
                     : authStep === "signup-profile"
                     ? "Create your account"
@@ -1710,9 +1669,7 @@ export default function App() {
                     : "Reset Password"}
                 </h2>
                 <p className="subtitle">
-                  {authStep === "portal-select"
-                    ? "Choose a demo workspace to sign in, or create an account with multiple workspaces."
-                    : authStep === "signin"
+                  {authStep === "signin"
                     ? "Sign in to your account. Switch workspaces anytime from your profile menu."
                     : authStep === "signup-profile"
                     ? "Tell us a little about yourself to get started."
@@ -1725,107 +1682,6 @@ export default function App() {
 
                 {notice && <div className="auth-notice-banner">{notice}</div>}
               </div>
-
-              {/* Demo sign-in shortcuts */}
-              {authStep === "portal-select" && (
-                <div className="portal-selection-container">
-                  <div className="portal-cards-list two-portals">
-                    {/* Portal 1: Admin */}
-                    <button
-                      type="button"
-                      className={`portal-role-card ${portalRole === "admin" ? "active" : ""}`}
-                      onClick={() => {
-                        setPortalRole("admin");
-                        setAvailableWorkspaces(["admin"]);
-                        setLoginId("admin@workflow.internal");
-                        setPassword("demo123");
-                        setAuthStep("signin");
-                      }}
-                    >
-                      <div className="portal-card-top">
-                        <div className="portal-icon-wrapper admin">
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                            <rect x="3" y="3" width="18" height="18" rx="2" />
-                            <path d="M3 9h18" />
-                            <path d="M9 21V9" />
-                          </svg>
-                        </div>
-                        <span className="portal-tag admin">FULL ACCESS</span>
-                      </div>
-                      <div className="portal-card-info">
-                        <h3>Admin</h3>
-                        <p>Complete control — create projects, assign leads and members, manage all teams, tasks, and communications.</p>
-                      </div>
-                      <div className="portal-card-action">
-                        <span>Continue to Admin Sign in</span>
-                        <span className="action-arrow">→</span>
-                      </div>
-                    </button>
-
-                    {/* Portal 2: Team Lead or Employee */}
-                    <button
-                      type="button"
-                      className={`portal-role-card ${portalRole === "lead_employee" ? "active" : ""}`}
-                      onClick={() => {
-                        setPortalRole("lead_employee");
-                        setLeadWorkspace("lead");
-                        setAvailableWorkspaces(["lead", "employee"]);
-                        setLoginId("arun.patel@workflow.internal");
-                        setPassword("demo123");
-                        setAuthStep("signin");
-                      }}
-                    >
-                      <div className="portal-card-top">
-                        <div className="portal-icon-wrapper lead-employee">
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                          </svg>
-                        </div>
-                        <span className="portal-tag lead-employee">LEAD + EMPLOYEE</span>
-                      </div>
-                      <div className="portal-card-info">
-                        <h3>Team Lead or Employee</h3>
-                        <p>One login, two views: see projects you lead and the tasks assigned to you.</p>
-                      </div>
-                      <div className="portal-card-action">
-                        <span>Continue to Sign in</span>
-                        <span className="action-arrow">→</span>
-                      </div>
-                    </button>
-                  </div>
-
-                  {/* Quick Demo Accounts Helper */}
-                  <div className="demo-accounts-helper">
-                    <span className="demo-helper-title">Quick Demo Logins (1-Click)</span>
-                    <div className="demo-chips-row">
-                      <button
-                        type="button"
-                        className="demo-chip-btn"
-                        onClick={() => loginAsDemo("admin", "lead", "admin@workflow.internal")}
-                      >
-                        ⚡ Admin Console
-                      </button>
-                      <button
-                        type="button"
-                        className="demo-chip-btn"
-                        onClick={() => loginAsDemo("lead_employee", "lead", "arun.patel@workflow.internal")}
-                      >
-                        👑 Team Lead (Arun)
-                      </button>
-                      <button
-                        type="button"
-                        className="demo-chip-btn"
-                        onClick={() => loginAsDemo("lead_employee", "employee", "arun.patel@workflow.internal")}
-                      >
-                        💼 Employee (Arun)
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* 2. SIGN IN STEP */}
               {authStep === "signin" && (
@@ -2043,7 +1899,7 @@ export default function App() {
                     }
                     const workspaces = (["admin", "lead", "employee"] as WorkspaceRole[])
                       .filter((workspace) => selectedSignupWorkspaces.includes(workspace));
-                    const firstWorkspace = workspaces[0];
+                    const firstWorkspace = workspaces[0] ?? "admin";
                     setRegisteredAccount({
                       name: signupName.trim(),
                       email: signupEmail.trim(),
@@ -2141,7 +1997,7 @@ export default function App() {
                 </form>
               )}
             </div>
-          </section>
+        </section>
         )}
       </main>
     );
@@ -2151,7 +2007,7 @@ export default function App() {
   // RENDER: MAIN APP SHELL (LOGGED IN)
   // -------------------------------------------------------------
   return (
-    <main className={`app-shell green-black-theme ${isManager && activePage === "Dashboard" ? "manager-overview-mode" : ""} ${notice ? "has-global-notice" : ""}`}>
+    <main className={`app-shell green-black-theme ${activePage === "Dashboard" ? "ov-mode" : ""} ${notice ? "has-global-notice" : ""}`}>
       {/* SIDEBAR */}
       <aside className="sidebar">
         {/* Brand */}
@@ -2161,14 +2017,8 @@ export default function App() {
           </span>
           <div>
             <strong>WORK FLOW</strong>
-            <small>ENTERPRISE SUITE</small>
+            <small>{isManager ? "Manager" : isTeamLead ? "Team Lead" : "Employee"} Workspace</small>
           </div>
-        </div>
-
-        {/* Active workspace indicator */}
-        <div className={`sidebar-portal-badge ${portalRole}`}>
-          <span className="portal-dot"></span>
-          <span>{workspaceLabel(activeWorkspace).toUpperCase()} WORKSPACE</span>
         </div>
 
         {/* Navigation Menu */}
@@ -2251,51 +2101,6 @@ export default function App() {
 
       {/* WORKSPACE CONTENT AREA */}
       <section className="workspace">
-        {/* TOPBAR */}
-        {!(isManager && activePage === "Dashboard") && <header className="topbar">
-          <div className="topbar-title">
-            <button
-              type="button"
-              className="back-button"
-              onClick={goBack}
-              title="Go back"
-            >
-              ←
-            </button>
-            <div>
-              <h1>{activePage}</h1>
-              <p>
-                {isManager
-                  ? "Manager · Full project, team, and task management"
-                  : isTeamLead
-                  ? "Team Lead · Manage assigned teams and project tasks"
-                  : "Employee · Personal tasks, timers, and permitted team information"}
-              </p>
-            </div>
-          </div>
-
-          <div className="topbar-actions">
-            {/* Live Timer Alert if running */}
-            {runningTaskId && (
-              <div className="topbar-timer-alert pulse-green">
-                <span className="timer-dot"></span>
-                <span>
-                  Timer active on <strong>{runningTaskId}</strong>:{" "}
-                  {formatTimer(tasks.find((t) => t.id === runningTaskId)?.timeSpentSeconds || 0)}
-                </span>
-                <button
-                  type="button"
-                  className="btn-pause-inline"
-                  onClick={() => setRunningTaskId(null)}
-                >
-                  Pause
-                </button>
-              </div>
-            )}
-
-          </div>
-        </header>}
-
         {/* GLOBAL NOTICE BANNER */}
         {notice && (
           <div className="global-notice-bar">
@@ -2308,482 +2113,277 @@ export default function App() {
             PAGE CONTENT ROUTING
            ======================================================== */}
         <div className="workspace-scrollable">
-          {/* 1. DASHBOARD */}
-          {activePage === "Dashboard" && (
-            <div className={`dashboard-content-page ${isManager ? "manager-overview-content" : ""}`}>
-              {isManager ? (
-                <div className="manager-overview-layout">
-                  <section className="manager-overview-metrics" aria-label="Workspace metrics">
-                    <article className="manager-overview-metric">
-                      <span className="manager-overview-metric-icon">▣</span>
-                      <div><small>Total projects</small><strong>{projectsList.length}</strong></div>
-                      <span className="manager-overview-metric-note">Managed</span>
-                    </article>
-                    <article className="manager-overview-metric">
-                      <span className="manager-overview-metric-icon">♧</span>
-                      <div><small>Total teams</small><strong>{teamsList.length}</strong></div>
-                      <span className="manager-overview-metric-note">Across projects</span>
-                    </article>
-                    <article className="manager-overview-metric">
-                      <span className="manager-overview-metric-icon">☷</span>
-                      <div><small>Total tasks</small><strong>{managerTotalTeamTasks}</strong></div>
-                      <span className="manager-overview-metric-note">Across all teams</span>
-                    </article>
-                    <article className="manager-overview-metric manager-overview-metric-highlight">
-                      <span className="manager-overview-metric-icon">✓</span>
-                      <div><small>Completion rate</small><strong>{managerCompletionRate}%</strong></div>
-                      <span className="manager-overview-metric-note">{managerCompletedTasks} of {managerTotalTeamTasks} team tasks</span>
-                    </article>
-                  </section>
-
-                  <section className="manager-overview-panel manager-team-overview" aria-labelledby="manager-team-overview-title">
-                    <div className="manager-panel-heading">
-                      <div>
-                        <h3 id="manager-team-overview-title">Team overview</h3>
-                        <p>Progress across your teams</p>
-                      </div>
-                      <button type="button" className="manager-panel-link" onClick={() => navigateTo("All Teams")}>
-                        All teams <span aria-hidden="true">→</span>
-                      </button>
-                    </div>
-                    <div className="manager-team-list">
-                      {managerOverviewTeams.slice(0, 4).map((team) => {
-                        const progress = team.totalTasks
-                          ? Math.round((team.completedTasks / team.totalTasks) * 100)
-                          : 0;
-                        return (
-                          <button
-                            type="button"
-                            key={team.id}
-                            className="manager-team-row"
-                            onClick={() => setSelectedTeamId(team.id)}
-                            aria-label={`View ${team.name}, led by ${team.lead}`}
-                          >
-                            <span className="manager-team-avatar">{team.name.split(" ").map((word) => word[0]).slice(0, 2).join("")}</span>
-                            <span className="manager-team-name">
-                              <strong>{team.name}</strong>
-                              <small>{team.members.length} members · Lead: {team.lead}</small>
-                            </span>
-                            <span className="manager-team-progress">
-                              <span className="manager-team-progress-track">
-                                <span style={{ width: `${progress}%` }} />
-                              </span>
-                              <small>{team.completedTasks}/{team.totalTasks} tasks</small>
-                            </span>
-                            <strong className="manager-team-percent">{progress}%</strong>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </section>
-
-                  <section className="manager-overview-panel manager-project-status manager-quick-actions-panel" aria-label="Project status and quick actions">
-                    <div className="manager-status-actions-layout">
-                      <div className="manager-status-summary">
-                        <div className="manager-panel-heading">
-                          <div>
-                            <h3 id="manager-project-status-title">Project status</h3>
-                            <p>Current project distribution</p>
-                          </div>
-                          <button type="button" className="manager-panel-link" onClick={() => navigateTo("All Projects")}>
-                            Details <span aria-hidden="true">→</span>
-                          </button>
-                        </div>
-                        <div className="manager-project-status-content">
-                          <div
-                            className="manager-project-donut"
-                            style={{ background: managerProjectChartBackground }}
-                            role="img"
-                            aria-label={`${managerOverviewProjects.length} projects by status`}
-                          >
-                            <span><strong>{managerOverviewProjects.length}</strong><small>Projects</small></span>
-                          </div>
-                          <ul className="manager-project-legend">
-                            {managerProjectStatuses.map((item) => (
-                              <li key={item.status}>
-                                <span className="manager-project-legend-label">
-                                  <i style={{ background: item.color }} />
-                                  {item.label}
-                                </span>
-                                <strong>{item.count}</strong>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                      <div className="manager-quick-actions">
-                      <div className="manager-panel-heading">
-                        <div>
-                          <h3 id="manager-quick-actions-title">Quick actions</h3>
-                          <p>Get things moving</p>
-                        </div>
-                      </div>
-                      <div className="manager-quick-action-list">
-                        <button type="button" onClick={() => setShowCreateProjectModal(true)}>
-                          <span>＋</span><strong>Create project</strong><i aria-hidden="true">→</i>
-                        </button>
-                        <button type="button" onClick={() => setShowAssignTaskModal(true)}>
-                          <span>☷</span><strong>Assign task</strong><i aria-hidden="true">→</i>
-                        </button>
-                        <button type="button" onClick={() => navigateTo("Reports")}>
-                          <span>▤</span><strong>View reports</strong><i aria-hidden="true">→</i>
-                        </button>
-                      </div>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className="manager-overview-panel manager-recent-activity" aria-labelledby="manager-activity-title">
-                    <div className="manager-panel-heading">
-                      <div>
-                        <h3 id="manager-activity-title">Recent task activity</h3>
-                        <p>Latest updates from your workspace</p>
-                      </div>
-                      <button type="button" className="manager-panel-link" onClick={() => navigateTo("Time Tracking")}>
-                        Time logs <span aria-hidden="true">→</span>
-                      </button>
-                    </div>
-                    <div className="manager-activity-list">
-                      {managerOverviewActivity.map((log) => (
-                        <article key={log.id} className="manager-activity-item">
-                          <span className="manager-activity-avatar" aria-hidden="true">{log.userInitials}</span>
-                          <div className="manager-activity-copy">
-                            <strong>{log.user}</strong>
-                            <span>{log.activity}</span>
-                            <small>{log.task}</small>
-                          </div>
-                          <div className="manager-activity-meta">
-                            <span className={`manager-activity-event ${log.event.toLowerCase().replace(" ", "-")}`}>{log.event}</span>
-                            <time>{log.time.replace(/^Today, /, "").replace(/^Yesterday, /, "")}</time>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              ) : (
-                <>
-              {/* Top Stats Cards */}
-              <div className="stats-grid-row">
-                {isManager ? (
-                  <>
-                    <div className="metric-kpi-card green-accent">
-                      <div className="kpi-top">
-                        <span>TOTAL PROJECTS</span>
-                        <span className="kpi-icon">🗂</span>
-                      </div>
-                      <strong className="kpi-value">{projectsList.length}</strong>
-                      <small className="kpi-subtext">Across all managed work</small>
-                    </div>
-                    <div className="metric-kpi-card dark-accent">
-                      <div className="kpi-top">
-                        <span>TOTAL TEAMS</span>
-                        <span className="kpi-icon">👥</span>
-                      </div>
-                      <strong className="kpi-value">{teamsList.length}</strong>
-                      <small className="kpi-subtext">Project teams</small>
-                    </div>
-                    <div className="metric-kpi-card green-accent">
-                      <div className="kpi-top">
-                        <span>TOTAL TASKS</span>
-                        <span className="kpi-icon">▤</span>
-                      </div>
-                      <strong className="kpi-value">{tasks.length}</strong>
-                      <small className="kpi-subtext">Across all projects</small>
-                    </div>
-                    <div className="metric-kpi-card dark-accent">
-                      <div className="kpi-top">
-                        <span>COMPLETED</span>
-                        <span className="kpi-icon">⚡</span>
-                      </div>
-                      <strong className="kpi-value">
-                        {tasks.filter((task) => task.status === "Completed").length}
-                      </strong>
-                      <small className="kpi-subtext">Tasks completed</small>
-                    </div>
-                    <div className="metric-kpi-card green-accent">
-                      <div className="kpi-top">
-                        <span>PENDING</span>
-                        <span className="kpi-icon">◷</span>
-                      </div>
-                      <strong className="kpi-value">
-                        {tasks.filter((task) => task.status === "To do").length}
-                      </strong>
-                      <small className="kpi-subtext">Waiting to start</small>
-                    </div>
-                    <div className="metric-kpi-card dark-accent">
-                      <div className="kpi-top">
-                        <span>ACTIVE TASKS</span>
-                        <span className="kpi-icon">⚡</span>
-                      </div>
-                      <strong className="kpi-value">
-                        {tasks.filter((task) => task.status === "In progress").length}
-                      </strong>
-                      <small className="kpi-subtext">Currently in progress</small>
-                    </div>
-                  </>
-                ) : leadWorkspace === "lead" ? (
-                  <>
-                    <div className="metric-kpi-card green-accent">
-                      <div className="kpi-top">
-                        <span>ASSIGNED PROJECTS</span>
-                        <span className="kpi-icon">🗂</span>
-                      </div>
-                      <strong className="kpi-value">{visibleProjects.length}</strong>
-                      <small className="kpi-subtext">
-                        {visibleProjects.length
-                          ? visibleProjects.map((project) => project.name).join(" & ")
-                          : "No projects assigned yet"}
-                      </small>
-                    </div>
-                    <div className="metric-kpi-card dark-accent">
-                      <div className="kpi-top">
-                        <span>TEAM MEMBERS</span>
-                        <span className="kpi-icon">👥</span>
-                      </div>
-                      <strong className="kpi-value">
-                        {visibleTeams.reduce((count, team) => count + team.members.length, 0)}
-                      </strong>
-                      <small className="kpi-subtext">{visibleTeams.length} assigned teams</small>
-                    </div>
-                    <div className="metric-kpi-card green-accent">
-                      <div className="kpi-top">
-                        <span>TEAM TASKS IN PROGRESS</span>
-                        <span className="kpi-icon">⚡</span>
-                      </div>
-                      <strong className="kpi-value">
-                        {visibleTasks.filter((task) => task.status === "In progress").length}
-                      </strong>
-                      <small className="kpi-subtext">Across assigned projects</small>
-                    </div>
-                    <div className="metric-kpi-card dark-accent">
-                      <div className="kpi-top">
-                        <span>PENDING REVIEWS</span>
-                        <span className="kpi-icon">◷</span>
-                      </div>
-                      <strong className="kpi-value">
-                        {visibleTasks.filter((task) => task.status === "Review").length}
-                      </strong>
-                      <small className="kpi-subtext">Awaiting lead sign-off</small>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="metric-kpi-card green-accent">
-                      <div className="kpi-top">
-                        <span>MY ASSIGNED TASKS</span>
-                        <span className="kpi-icon">✓</span>
-                      </div>
-                      <strong className="kpi-value">{visibleTasks.length}</strong>
-                      <small className="kpi-subtext">
-                        {visibleTasks.filter((task) => task.priority === "High").length} high priority
-                      </small>
-                    </div>
-                    <div className="metric-kpi-card dark-accent">
-                      <div className="kpi-top">
-                        <span>IN PROGRESS</span>
-                        <span className="kpi-icon">⚡</span>
-                      </div>
-                      <strong className="kpi-value">
-                        {visibleTasks.filter((t) => t.status === "In progress").length}
-                      </strong>
-                      <small className="kpi-subtext">Timer tracking available</small>
-                    </div>
-                    <div className="metric-kpi-card green-accent">
-                      <div className="kpi-top">
-                        <span>HOURS LOGGED TODAY</span>
-                        <span className="kpi-icon">◷</span>
-                      </div>
-                      <strong className="kpi-value">
-                        {formatTimer(visibleTasks.reduce((total, task) => total + task.timeSpentSeconds, 0))}
-                      </strong>
-                      <small className="kpi-subtext">Across assigned tasks</small>
-                    </div>
-                    <div className="metric-kpi-card dark-accent">
-                      <div className="kpi-top">
-                        <span>COMPLETED SPRINTS</span>
-                        <span className="kpi-icon">★</span>
-                      </div>
-                      <strong className="kpi-value">
-                        {visibleTasks.filter((task) => task.status === "Completed").length}
-                      </strong>
-                      <small className="kpi-subtext">Completed tasks</small>
-                    </div>
-                  </>
-                )}
+          {activePage !== "Dashboard" && (
+            <div className="workspace-content-header">
+              <button
+                type="button"
+                className="workspace-content-back"
+                onClick={() => setActivePage("Dashboard")}
+                aria-label={`Back from ${activePage}`}
+              >
+                ←
+              </button>
+              <div>
+                <h1>{activePage === "My Projects" ? "All Projects" : activePage}</h1>
+                <p>
+                  {activePage === "All Projects" || activePage === "My Projects"
+                    ? "Manage projects, team members and task assignment"
+                    : activePage === "All Tasks" || activePage === "My Tasks" || activePage === "Team Tasks"
+                      ? "View and manage tasks across your workspace"
+                      : activePage === "All Teams" || activePage === "My Teams"
+                        ? "View teams, members and project ownership"
+                        : `${activePage} workspace details`}
+                </p>
               </div>
-
-              {/* Middle Section: Quick Actions & Highlights */}
-              <div className={`dashboard-grid-two-col ${isManager ? "manager-overview-panels" : ""}`}>
-                {/* Left Card: Active Focus */}
-                <div className="dash-card">
-                  <div className="dash-card-header">
-                    <h3>{portalRole === "admin" ? "Projects Overview" : leadWorkspace === "lead" ? "Team Deliverables" : "My Current Priority"}</h3>
-                    <button
-                      type="button"
-                      className="dash-link-action"
-                      onClick={() => navigateTo(portalRole === "admin" ? "All Projects" : "My Projects")}
-                    >
-                      View All →
-                    </button>
-                  </div>
-                  <div className="dash-card-body">
-                    {visibleProjects.slice(0, isManager ? 4 : 3).map((proj) => (
-                      <div key={proj.id} className="dash-proj-row" onClick={() => setSelectedProjectId(proj.id)}>
-                        <div className="dash-proj-info">
-                          <strong>{proj.name}</strong>
-                          <span className="dash-proj-team">{proj.team} · Lead: {proj.teamLeader}</span>
-                        </div>
-                        <div className="dash-proj-progress">
-                          <div className="proj-progress-bar">
-                            <div className="proj-progress-fill" style={{ width: `${proj.progress}%` }}></div>
-                          </div>
-                          <span className={`status-badge-pill ${proj.status.toLowerCase().replace(" ", "-")}`}>
-                            {proj.status}
-                          </span>
-                          <span className="proj-pct">{proj.progress}%</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Right Card: Quick Actions & Recent Tasks */}
-                <div className="dash-card">
-                  <div className="dash-card-header">
-                    <h3>{isManager ? "Quick Actions" : leadWorkspace === "lead" ? "Lead Controls" : "My Task Queue"}</h3>
-                    {!isManager && <button
-                      type="button"
-                      className="dash-link-action"
-                      onClick={() => navigateTo(portalRole === "admin" ? "All Tasks" : leadWorkspace === "lead" ? "Team Tasks" : "My Tasks")}
-                    >
-                      Task Center →
-                    </button>}
-                  </div>
-                  <div className="dash-card-body">
-                    <div className="quick-action-buttons-row">
-                      {portalRole === "admin" && (
-                        <>
-                          <button
-                            type="button"
-                            className="btn-quick-action"
-                            onClick={() => setShowCreateProjectModal(true)}
-                          >
-                            + Create Project
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-quick-action"
-                            onClick={() => setShowAssignTaskModal(true)}
-                          >
-                            + Assign Task
-                          </button>
-                        </>
-                      )}
-                      {portalRole === "lead_employee" && leadWorkspace === "lead" && (
-                        <>
-                          <button
-                            type="button"
-                            className="btn-quick-action"
-                            onClick={() => setShowAssignTaskModal(true)}
-                          >
-                            + Assign Task
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-quick-action"
-                            onClick={() => navigateTo("My Teams")}
-                          >
-                            👥 My Teams
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-quick-action"
-                            onClick={() => navigateTo("Team Progress")}
-                          >
-                            📈 Team Progress
-                          </button>
-                        </>
-                      )}
-                      {portalRole === "lead_employee" && leadWorkspace === "employee" && (
-                        <>
-                          <button
-                            type="button"
-                            className="btn-quick-action"
-                            onClick={() => navigateTo("My Tasks")}
-                          >
-                            ✓ Open Task List
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-quick-action"
-                            onClick={() => navigateTo("My Team")}
-                          >
-                            👥 Contact Team
-                          </button>
-                        </>
-                      )}
-                    </div>
-
-                    {!isManager && <div className="recent-tasks-mini-list">
-                      {visibleTasks.slice(0, 3).map((task) => (
-                        <div
-                          key={task.id}
-                          className="mini-task-item"
-                          onClick={() => setSelectedTaskId(task.id)}
-                        >
-                          <div className="mini-task-left">
-                            <span className={`priority-indicator ${task.priority.toLowerCase()}`}></span>
-                            <div>
-                              <strong>{task.title}</strong>
-                              <small>{task.project} · Due {task.due}</small>
-                            </div>
-                          </div>
-                          <span className={`status-pill-small ${task.status.toLowerCase().replace(" ", "-")}`}>
-                            {task.status}
-                          </span>
-                        </div>
-                      ))}
-                    </div>}
-                  </div>
-                </div>
-              </div>
-              {isManager && (
-                <section className="dash-card manager-recent-activity" aria-labelledby="manager-activity-title">
-                  <div className="dash-card-header">
-                    <h3 id="manager-activity-title">Recent Activity</h3>
-                    <button type="button" className="dash-link-action" onClick={() => navigateTo("Time Tracking")}>
-                      View time logs →
-                    </button>
-                  </div>
-                  <div className="manager-activity-list">
-                    {timeLogs.slice(0, 4).map((log) => (
-                      <article key={log.id} className="manager-activity-item">
-                        <span className="manager-activity-avatar" aria-hidden="true">{log.userInitials}</span>
-                        <div className="manager-activity-copy">
-                          <strong>{log.user}</strong>
-                          <span>{log.activity}</span>
-                          <small>{log.task}</small>
-                        </div>
-                        <div className="manager-activity-meta">
-                          <span className={`manager-activity-event ${log.event.toLowerCase().replace(" ", "-")}`}>{log.event}</span>
-                          <time>{log.time}</time>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              )}
-                </>
+              {(activePage === "All Projects" || activePage === "My Projects") && portalRole === "admin" && (
+                <button type="button" className="btn-primary-emerald workspace-content-action" onClick={() => setShowCreateProjectModal(true)}>
+                  + Create Project
+                </button>
               )}
             </div>
           )}
+          {/* 1. OVERVIEW (role based) */}
+          {activePage === "Dashboard" && (() => {
+            const pct = (done: number, total: number) => (total > 0 ? Math.round((done / total) * 100) : 0);
+            const statusClass = (s: string) => s.toLowerCase().replace(/\s+/g, "-");
+            const initialsOf = (name: string) => name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+            const Ring = ({ value }: { value: number }) => (
+              <span className="ov-ring" style={{ background: `conic-gradient(var(--ov-accent) ${value * 3.6}deg, var(--ov-track) 0deg)` }}>
+                <span>{value}%</span>
+              </span>
+            );
+            const StatCard = ({ label, value, note }: { label: string; value: string | number; note: string }) => (
+              <article className="ov-stat">
+                <small>{label}</small>
+                <strong>{value}</strong>
+                <span>{note}</span>
+              </article>
+            );
+            const ProjectRow = ({ p }: { p: ProjectItem }) => (
+              <article className="ov-project-row">
+                <span className="ov-project-icon"><FolderKanban size={18} /></span>
+                <div className="ov-project-info">
+                  <strong>{p.name}</strong>
+                  <small>{p.team} · {p.members.length} members</small>
+                </div>
+                <span className="ov-project-lead">{p.teamLeader.split(" ")[0]}</span>
+                <div className="ov-project-progress">
+                  <Ring value={p.progress} />
+                  <small>{p.completedTasks}/{p.totalTasks} Tasks</small>
+                </div>
+              </article>
+            );
+
+            if (isManager) {
+              const done = tasks.filter((t) => t.status === "Completed").length;
+              return (
+                <div className="ov-page">
+                  <section className="ov-stats">
+                    <StatCard label="All Projects" value={projectsList.length} note="Managed" />
+                    <StatCard label="All Team" value={teamsList.length} note="Across projects" />
+                    <StatCard label="All Task" value={tasks.length} note="Across all teams" />
+                    <StatCard label="Completion Rate" value={`${pct(done, tasks.length)}%`} note={`${done} of ${tasks.length} tasks`} />
+                  </section>
+                  <section className="ov-grid-2">
+                    <div className="ov-card">
+                      <h3>Project Overview</h3>
+                      <div className="ov-scroll">
+                        {projectsList.map((p) => <ProjectRow key={p.id} p={p} />)}
+                      </div>
+                    </div>
+                    <div className="ov-card">
+                      <h3>Quick Actions</h3>
+                      <div className="ov-action">
+                        <div><strong>Create Project</strong><small>Create project & add team members</small></div>
+                        <button type="button" onClick={() => setShowCreateProjectModal(true)}>Create</button>
+                      </div>
+                      <div className="ov-action">
+                        <div><strong>Assign Task</strong><small>Assign task to the team members</small></div>
+                        <button type="button" onClick={() => setShowAssignTaskModal(true)}>Assign</button>
+                      </div>
+                      <div className="ov-action">
+                        <div><strong>Team Board</strong><small>View team details & projects</small></div>
+                        <button type="button" onClick={() => navigateTo("Team Board")}>Team board</button>
+                      </div>
+                    </div>
+                  </section>
+                  <section className="ov-card">
+                    <h3>Recent Activity</h3>
+                    <div className="ov-scroll ov-table-wrap">
+                      <table className="ov-table">
+                        <thead><tr><th>Name</th><th>Project</th><th>Task</th><th>Status</th></tr></thead>
+                        <tbody>
+                          {tasks.slice(0, 8).map((t) => (
+                            <tr key={t.id} onClick={() => setSelectedTaskId(t.id)}>
+                              <td><span className="ov-user"><span className="ov-avatar">{initialsOf(t.assignedTo)}</span>{t.assignedTo}</span></td>
+                              <td>{t.project}</td>
+                              <td>{t.title}</td>
+                              <td><span className={`ov-pill ${statusClass(t.status)}`}>{t.status}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </div>
+              );
+            }
+
+            if (isTeamLead) {
+              const leadProjects = projectsList.filter((p) => p.teamLeader === currentUser.name);
+              const leadProjectNames = new Set(leadProjects.map((p) => p.name));
+              const leadTeams = teamsList.filter((tm) => tm.lead === currentUser.name || leadProjectNames.has(tm.project));
+              const leadTasks = tasks.filter((t) => leadProjectNames.has(t.project));
+              const teamOf = (projectName: string) => leadProjects.find((p) => p.name === projectName)?.team ?? "—";
+              return (
+                <div className="ov-page">
+                  <section className="ov-stats">
+                    <StatCard label="Projects" value={leadProjects.length} note="Assigned to you" />
+                    <StatCard label="Teams" value={leadTeams.length} note="You lead" />
+                    <StatCard label="Tasks" value={leadTasks.length} note="In your projects" />
+                    <StatCard label="Completed" value={leadTasks.filter((t) => t.status === "Completed").length} note="Tasks done" />
+                  </section>
+                  <section className="ov-grid-3">
+                    <div className="ov-card">
+                      <h3>Project Overview</h3>
+                      <div className="ov-scroll">
+                        {leadProjects.length === 0 ? (
+                          <p className="ov-empty">No project assigned yet. Projects appear here once the admin assigns you as Team Lead.</p>
+                        ) : (
+                          leadProjects.map((p) => <ProjectRow key={p.id} p={p} />)
+                        )}
+                      </div>
+                    </div>
+                    <div className="ov-card">
+                      <h3>Teams</h3>
+                      <div className="ov-scroll">
+                        {leadTeams.length === 0 && <p className="ov-empty">No teams yet.</p>}
+                        {leadTeams.map((tm) => (
+                          <div key={tm.id} className="ov-team-row">
+                            <strong>{tm.name}</strong>
+                            <small>{tm.members.length} members</small>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="ov-card">
+                      <h3>Quick Actions</h3>
+                      <div className="ov-action">
+                        <div><strong>Assign Task</strong><small>Assign task to team members</small></div>
+                        <button type="button" onClick={() => setShowAssignTaskModal(true)}>Assign</button>
+                      </div>
+                      <div className="ov-action">
+                        <div><strong>View Team</strong><small>View team members & details</small></div>
+                        <button type="button" onClick={() => navigateTo("My Teams")}>View</button>
+                      </div>
+                    </div>
+                  </section>
+                  <section className="ov-card">
+                    <h3>Team Members Recent Activity</h3>
+                    <div className="ov-scroll ov-table-wrap">
+                      <table className="ov-table">
+                        <thead><tr><th>Name</th><th>Team</th><th>Project</th><th>Task</th><th>Status</th></tr></thead>
+                        <tbody>
+                          {leadTasks.length === 0 && <tr><td colSpan={5} className="ov-empty">No activity yet.</td></tr>}
+                          {leadTasks.slice(0, 8).map((t) => (
+                            <tr key={t.id} onClick={() => setSelectedTaskId(t.id)}>
+                              <td><span className="ov-user"><span className="ov-avatar">{initialsOf(t.assignedTo)}</span>{t.assignedTo}</span></td>
+                              <td>{teamOf(t.project)}</td>
+                              <td>{t.project}</td>
+                              <td>{t.title}</td>
+                              <td><span className={`ov-pill ${statusClass(t.status)}`}>{t.status}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </div>
+              );
+            }
+
+            const myTasks = tasks.filter((t) => t.assignedTo === currentUser.name);
+            const openTasks = myTasks.filter((t) => t.status !== "Completed");
+            const myTeamCount = teamsList.filter((tm) => tm.members.some((m) => m.name === currentUser.name)).length;
+            const totalSeconds = myTasks.reduce((sum, t) => sum + t.timeSpentSeconds, 0);
+            const current = myTasks.find((t) => t.id === runningTaskId) ?? myTasks.find((t) => t.status === "In progress") ?? openTasks[0];
+            const timerOn = current ? runningTaskId === current.id : false;
+            return (
+              <div className="ov-page">
+                <section className="ov-stats">
+                  <StatCard label="My Open Tasks" value={openTasks.length} note="To finish" />
+                  <StatCard label="My Teams" value={myTeamCount} note="You belong to" />
+                  <StatCard label="Time" value={`${Math.floor(totalSeconds / 3600)}h ${Math.floor((totalSeconds % 3600) / 60)}m`} note="Tracked" />
+                  <StatCard label="Completed" value={myTasks.length - openTasks.length} note="Tasks done" />
+                </section>
+                <section className="ov-grid-2">
+                  <div className="ov-card">
+                    <div className="ov-card-head">
+                      <h3>Current Task</h3>
+                      {current && <span className={`ov-pill ${statusClass(current.status)}`}>{current.status}</span>}
+                    </div>
+                    {current ? (
+                      <>
+                        <strong className="ov-current-title">{current.title}</strong>
+                        <p className="ov-current-meta">
+                          Project: {current.project} · Assigned by: {current.assignedBy} · Due: {current.due}
+                        </p>
+                        <div className="ov-timer-row">
+                          <div><small>Active Timer</small><strong>{formatTimer(current.timeSpentSeconds)}</strong></div>
+                          <button type="button" onClick={(e) => toggleTaskTimer(current.id, e)}>{timerOn ? "Pause" : "Start"}</button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="ov-empty">No open tasks right now.</p>
+                    )}
+                  </div>
+                  <div className="ov-card">
+                    <h3>Team Activity</h3>
+                    <div className="ov-scroll">
+                      {timeLogs.slice(0, 5).map((log) => (
+                        <div key={log.id} className="ov-activity-row">
+                          <span><strong>{log.user}</strong> {log.activity.toLowerCase()}</span>
+                          <small>{log.time}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+                <section className="ov-card">
+                  <h3>Upcoming Tasks</h3>
+                  <div className="ov-scroll ov-table-wrap">
+                    <table className="ov-table">
+                      <thead><tr><th>Task</th><th>Project</th><th>Due Date</th><th>Priority</th><th>Status</th></tr></thead>
+                      <tbody>
+                        {openTasks.length === 0 && <tr><td colSpan={5} className="ov-empty">No upcoming tasks.</td></tr>}
+                        {openTasks.map((t) => (
+                          <tr key={t.id} onClick={() => setSelectedTaskId(t.id)}>
+                            <td>{t.title}</td>
+                            <td>{t.project}</td>
+                            <td>{t.due}</td>
+                            <td><span className={`ov-priority ${t.priority.toLowerCase()}`}>{t.priority}</span></td>
+                            <td><span className={`ov-pill ${statusClass(t.status)}`}>{t.status}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            );
+          })()}
 
           {/* 2. ALL PROJECTS & MY PROJECTS (GRID VIEW!) */}
           {(activePage === "All Projects" || activePage === "My Projects") && (
             <div className="projects-view-page">
-              {/* Action Bar */}
-              <div className="view-action-bar">
+              <div className="manager-project-metrics">
+                <div><span>Total Projects</span><strong>{visibleProjects.length}</strong></div>
+                <div><span>In Progress</span><strong>{visibleProjects.filter((project) => project.status === "In Progress").length}</strong></div>
+                <div><span>Completed</span><strong>{visibleProjects.filter((project) => project.status === "Completed").length}</strong></div>
+                <div><span>Open Tasks</span><strong>{tasks.filter((task) => task.status !== "Completed").length}</strong></div>
+              </div>
+
+              <div className="manager-project-toolbar">
                 <div className="search-filters-left">
                   <div className="search-box-input">
                     <span className="search-icon">⌕</span>
@@ -2808,25 +2408,18 @@ export default function App() {
                   </select>
                 </div>
 
-                {portalRole === "admin" && (
-                  <button
-                    type="button"
-                    className="btn-primary-emerald"
-                    onClick={() => setShowCreateProjectModal(true)}
-                  >
-                    + Create Project
-                  </button>
-                )}
               </div>
 
               <div className="project-directory-table-wrap">
                 <table className="project-directory-table">
                   <thead>
                     <tr>
-                      <th>Project name</th>
+                      <th>Title</th>
+                      <th>Team</th>
                       <th>Lead</th>
-                      <th>Teams</th>
-                      <th>Due date</th>
+                      <th>Tasks</th>
+                      <th>Progress</th>
+                      <th>Due Date</th>
                       <th>Status</th>
                       <th aria-label="Actions" />
                     </tr>
@@ -2835,8 +2428,20 @@ export default function App() {
                     {visibleProjects.map((project) => (
                       <tr key={project.id} onClick={() => setSelectedProjectId(project.id)}>
                         <td><strong>{project.name}</strong><span>{project.description}</span></td>
-                        <td><div className="project-table-person"><img src={project.teamLeaderAvatar} alt="" /><span>{project.teamLeader}</span></div></td>
                         <td>{project.team}</td>
+                        <td>
+                          <div className="project-table-person">
+                            <span className="project-lead-avatar">{project.teamLeader.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
+                            <span>{project.teamLeader}</span>
+                          </div>
+                        </td>
+                        <td>{tasks.filter((task) => task.project === project.name).length}</td>
+                        <td>
+                          <div className="project-table-progress">
+                            <div><i style={{ width: `${project.progress}%` }} /></div>
+                            <strong>{project.progress}%</strong>
+                          </div>
+                        </td>
                         <td>{project.dueDate}</td>
                         <td><span className={`status-badge-pill ${project.status.toLowerCase().replace(" ", "-")}`}>{project.status}</span></td>
                         <td><button type="button" className="project-row-open" onClick={(e) => { e.stopPropagation(); setSelectedProjectId(project.id); }}>Open →</button></td>
@@ -2844,89 +2449,6 @@ export default function App() {
                     ))}
                   </tbody>
                 </table>
-              </div>
-
-              {/* PROJECT CARDS REMOVED: PROJECT DIRECTORY NOW USES THE TABLE ABOVE */}
-              <div className="projects-grid-layout" hidden>
-                {visibleProjects.map((project) => (
-                  <div key={project.id} className="project-grid-card">
-                    <div className="proj-card-top-row">
-                      <span className="proj-team-badge">{project.team}</span>
-                      <span className={`status-badge-pill ${project.status.toLowerCase().replace(" ", "-")}`}>
-                        {project.status}
-                      </span>
-                    </div>
-
-                    <h3 className="proj-card-title">{project.name}</h3>
-                    <p className="proj-card-description">{project.description}</p>
-
-                    {/* Progress Bar */}
-                    <div className="proj-progress-section">
-                      <div className="proj-progress-header">
-                        <span>Milestone Progress</span>
-                        <strong>{project.progress}%</strong>
-                      </div>
-                      <div className="progress-track">
-                        <div className="progress-fill-emerald" style={{ width: `${project.progress}%` }}></div>
-                      </div>
-                    </div>
-
-                    {/* Team Lead & Member Avatars */}
-                    <div className="proj-lead-row">
-                      <div className="lead-chip">
-                        <img src={project.teamLeaderAvatar} alt={project.teamLeader} className="lead-avatar-tiny" />
-                        <span>Lead: <strong>{project.teamLeader}</strong></span>
-                      </div>
-                      <div className="member-avatar-cluster">
-                        {project.memberAvatars.map((av, idx) => (
-                          <img key={idx} src={av} alt="Member" className="cluster-avatar" />
-                        ))}
-                        {project.membersExtra && (
-                          <span className="cluster-avatar-extra">+{project.membersExtra}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {portalRole === "admin" && (
-                      <label className="assign-lead-row" onClick={(e) => e.stopPropagation()}>
-                        <span>Assign Team Lead</span>
-                        <select
-                          value={project.teamLeader}
-                          onChange={(e) => {
-                            const lead = e.target.value;
-                            setProjectsList((prev) =>
-                              prev.map((p) =>
-                                p.id === project.id
-                                  ? { ...p, teamLeader: lead, members: p.members.includes(lead) ? p.members : [lead, ...p.members] }
-                                  : p
-                              )
-                            );
-                            setNotice(`${lead} is now Team Lead of ${project.name}.`);
-                          }}
-                        >
-                          {Array.from(new Set(["Arun Patel", "Priya Sharma", "Maya Chen", project.teamLeader])).map((n) => (
-                            <option key={n} value={n}>{n}</option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-
-                    {/* Card Footer */}
-                    <div className="proj-card-footer">
-                      <div className="proj-meta-due">
-                        <span>📅 Due: {project.dueDate}</span>
-                        <span>✓ {project.completedTasks}/{project.totalTasks} tasks</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-view-details-card"
-                        onClick={() => setSelectedProjectId(project.id)}
-                      >
-                        View Details →
-                      </button>
-                    </div>
-                  </div>
-                ))}
               </div>
 
               {visibleProjects.length === 0 && (
@@ -3145,78 +2667,43 @@ export default function App() {
                 )}
               </div>
 
-              {/* GRID VIEW FOR TEAMS */}
-              <div className="teams-grid-layout">
+              <div className="project-directory-table-wrap team-directory-table-wrap">
+                <table className="project-directory-table team-directory-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Project</th>
+                      <th>Lead</th>
+                      <th>Team Members</th>
+                      <th>Tasks</th>
+                      <th>Status</th>
+                      <th aria-label="Open team" />
+                    </tr>
+                  </thead>
+                  <tbody>
                 {visibleTeams.map((team) => (
-                  <div key={team.id} className="team-grid-card">
-                    <div className="team-card-header">
-                      <div>
-                        <span className="team-project-chip">Project: {team.project}</span>
-                        <h3 className="team-card-title">{team.name}</h3>
+                  <tr key={team.id} onClick={() => setSelectedTeamId(team.id)}>
+                    <td><strong># {team.name}</strong></td>
+                    <td>{team.project}</td>
+                    <td>
+                      <div className="project-table-person">
+                        <span className="project-lead-avatar">{team.lead.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
+                        <span>{team.lead}</span>
                       </div>
-                      <span className="team-members-count-badge">
-                        {team.members.length} Members
-                      </span>
-                    </div>
-
-                    <p className="team-card-description">{team.description}</p>
-
-                    {/* Team Lead Row */}
-                    <div className="team-lead-strip">
-                      <img src={team.leadAvatar} alt={team.lead} className="lead-strip-avatar" />
-                      <div className="lead-strip-info">
-                        <span className="lead-strip-title">TEAM LEAD</span>
-                        <strong>{team.lead}</strong>
-                        <small>{team.leadEmail}</small>
+                    </td>
+                    <td>
+                      <div className="team-member-avatar-list">
+                        {team.members.slice(0, 4).map((member) => <span key={member.id}>{member.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>)}
+                        <small>{team.members.length} members</small>
                       </div>
-                    </div>
-
-                    {/* Members with active task count */}
-                    <div className="team-members-roster-preview">
-                      <span className="roster-preview-heading">Members & Active Tasks:</span>
-                      <div className="roster-list-chips">
-                        {team.members.map((m) => (
-                          <div key={m.id} className="member-task-chip">
-                            <img src={m.avatar} alt={m.name} className="m-chip-avatar" />
-                            <span className="m-chip-name">{m.name}</span>
-                            <span className="m-chip-task-count">({m.activeTasks} tasks)</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Team Metrics Summary */}
-                    <div className="team-metrics-row">
-                      <span>⚡ Total Tasks: <strong>{team.totalTasks}</strong></span>
-                      <span>✓ Completed: <strong>{team.completedTasks}</strong></span>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="team-card-actions">
-                      <button
-                        type="button"
-                        className="btn-team-secondary"
-                        onClick={() => setSelectedTeamId(team.id)}
-                      >
-                        View Team Details
-                      </button>
-
-                      {(isManager || isTeamLead) && (
-                        <button
-                          type="button"
-                          className="btn-team-assign"
-                          onClick={() => {
-                            setNewTaskProject(team.project);
-                            setNewTaskAssignee(team.members[0]?.name || "Rahul Varma");
-                            setShowAssignTaskModal(true);
-                          }}
-                        >
-                          Assign Task
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                    </td>
+                    <td>{team.totalTasks}</td>
+                    <td><span className={`status-badge-pill ${team.completedTasks === team.totalTasks ? "completed" : "in-progress"}`}>{team.completedTasks === team.totalTasks ? "Inactive" : "Active"}</span></td>
+                    <td><button type="button" className="project-row-open" onClick={(event) => { event.stopPropagation(); setSelectedTeamId(team.id); }}>›</button></td>
+                  </tr>
                 ))}
+                  </tbody>
+                </table>
               </div>
 
               {visibleTeams.length === 0 && (
@@ -3334,6 +2821,10 @@ export default function App() {
             <div className="chat-system-page">
               <div className="chat-channels-sidebar">
                 <span className="chat-sidebar-header">TEAM CHANNELS</span>
+                <label className="chat-search-box">
+                  <span>⌕</span>
+                  <input type="search" placeholder="Search team" />
+                </label>
                 {[
                   { id: "alpha-engineering", name: "#alpha-engineering", tag: "Alpha Team" },
                   { id: "beta-mobile", name: "#beta-mobile", tag: "Mobile Team" },
@@ -3377,6 +2868,23 @@ export default function App() {
                 </div>
 
                 <form onSubmit={handleSendChatMessage} className="chat-input-bar">
+                  <div className="chat-attachment-wrap">
+                    <button
+                      type="button"
+                      className="chat-attach-button"
+                      aria-label="Add attachment"
+                      onClick={() => setChatAttachmentMenuOpen((open) => !open)}
+                    >
+                      ×
+                    </button>
+                    {chatAttachmentMenuOpen && (
+                      <div className="chat-attachment-menu">
+                        <label>▤ Documents<input type="file" accept=".pdf,.doc,.docx,.txt,.csv" onChange={(event) => setChatPendingAttachment(event.target.files?.[0] ? `Attached: ${event.target.files[0].name}` : "")} /></label>
+                        <button type="button" onClick={() => { const link = window.prompt("Paste link"); setChatPendingAttachment(link ? `Link: ${link}` : ""); }}>⌁ Links</button>
+                        <label>▧ Image<input type="file" accept="image/*" onChange={(event) => setChatPendingAttachment(event.target.files?.[0] ? `Image: ${event.target.files[0].name}` : "")} /></label>
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="text"
                     placeholder={`Message #${activeChannelId}...`}
@@ -3384,7 +2892,7 @@ export default function App() {
                     onChange={(e) => setChatInputText(e.target.value)}
                   />
                   <button type="submit" className="btn-chat-send">
-                    Send
+                    ➤ Send
                   </button>
                 </form>
               </div>
@@ -3396,6 +2904,10 @@ export default function App() {
             <div className="chat-system-page">
               <div className="chat-channels-sidebar">
                 <span className="chat-sidebar-header">DIRECT MESSAGES</span>
+                <label className="chat-search-box">
+                  <span>⌕</span>
+                  <input type="search" placeholder="Search user" />
+                </label>
                 {[
                   { id: "arun-patel", name: "Arun Patel", role: "Team Lead", status: "Active" },
                   { id: "priya-sharma", name: "Priya Sharma", role: "Mobile Lead", status: "Active" },
@@ -3438,6 +2950,23 @@ export default function App() {
                 </div>
 
                 <form onSubmit={handleSendDirectMessage} className="chat-input-bar">
+                  <div className="chat-attachment-wrap">
+                    <button
+                      type="button"
+                      className="chat-attach-button"
+                      aria-label="Add attachment"
+                      onClick={() => setDmAttachmentMenuOpen((open) => !open)}
+                    >
+                      +
+                    </button>
+                    {dmAttachmentMenuOpen && (
+                      <div className="chat-attachment-menu">
+                        <label>▤ Documents<input type="file" accept=".pdf,.doc,.docx,.txt,.csv" onChange={(event) => setDmPendingAttachment(event.target.files?.[0] ? `Attached: ${event.target.files[0].name}` : "")} /></label>
+                        <button type="button" onClick={() => { const link = window.prompt("Paste link"); setDmPendingAttachment(link ? `Link: ${link}` : ""); }}>⌁ Links</button>
+                        <label>▧ Image<input type="file" accept="image/*" onChange={(event) => setDmPendingAttachment(event.target.files?.[0] ? `Image: ${event.target.files[0].name}` : "")} /></label>
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="text"
                     placeholder="Type a direct message..."
@@ -3445,7 +2974,7 @@ export default function App() {
                     onChange={(e) => setDmInputText(e.target.value)}
                   />
                   <button type="submit" className="btn-chat-send">
-                    Send
+                    ➤ Send
                   </button>
                 </form>
               </div>
@@ -3853,8 +3382,18 @@ export default function App() {
         <section className="workspace-page-view assign-task-page-view" aria-label="Assign task">
           <div className="workspace-page-view-body">
             <div className="modal-header">
+              <button
+                type="button"
+                className="workspace-page-back"
+                onClick={() => {
+                  setShowAssignTaskModal(false);
+                  if (assignTaskProjectId) setSelectedProjectId(assignTaskProjectId);
+                  setAssignTaskProjectId(null);
+                }}
+              >
+                <span aria-hidden="true">←</span> Project details
+              </button>
               <h3>Assign New Task</h3>
-              <button type="button" className="close-btn" onClick={() => setShowAssignTaskModal(false)}>×</button>
             </div>
 
             <form onSubmit={handleAssignTask} className="modal-form">
@@ -3940,7 +3479,11 @@ export default function App() {
                 <button
                   type="button"
                   className="btn-modal-cancel"
-                  onClick={() => setShowAssignTaskModal(false)}
+                  onClick={() => {
+                    setShowAssignTaskModal(false);
+                    if (assignTaskProjectId) setSelectedProjectId(assignTaskProjectId);
+                    setAssignTaskProjectId(null);
+                  }}
                 >
                   Cancel
                 </button>
@@ -3958,11 +3501,15 @@ export default function App() {
         <section className="workspace-page-view project-detail-page-view" aria-label="Project details">
           <div className="project-detail-page-view-body">
             <div className="modal-header">
-              <div>
-                <span className="modal-sub-tag">{selectedProjectObj.team}</span>
-                <h2>{selectedProjectObj.name}</h2>
+              <div className="project-details-page-heading">
+                <button type="button" className="workspace-page-back" onClick={() => setSelectedProjectId(null)}>
+                  <span aria-hidden="true">←</span> All Projects
+                </button>
+                <div>
+                  <h2>All Projects</h2>
+                  <span>Project details</span>
+                </div>
               </div>
-              <button type="button" className="close-btn" onClick={() => setSelectedProjectId(null)}>×</button>
             </div>
 
             <div className="modal-body-scroll">
@@ -4039,7 +3586,12 @@ export default function App() {
                           <span className="detail-member-avatar-char">{member.name.charAt(0)}</span>
                           <div><strong>{member.name}</strong><span>{member.email}</span></div>
                           {assigned ? (
-                            <button type="button" onClick={() => setShowAssignTaskModal(true)}>Assign task</button>
+                            <button type="button" onClick={() => {
+                              setAssignTaskProjectId(selectedProjectObj.id);
+                              setNewTaskProject(selectedProjectObj.name);
+                              setSelectedProjectId(null);
+                              setShowAssignTaskModal(true);
+                            }}>Assign task</button>
                           ) : (
                             <button type="button" onClick={() => setProjectsList((previous) => previous.map((project) => project.id === selectedProjectObj.id ? { ...project, members: [...project.members, member.name] } : project))}>Add</button>
                           )}
@@ -4051,121 +3603,24 @@ export default function App() {
               </div>
             </div>
 
-            <div className="modal-actions-footer">
-              {isManager && (
-                <>
-                  <button
-                    type="button"
-                    className="btn-modal-cancel"
-                    onClick={() => {
-                      const name = window.prompt("Project name:", selectedProjectObj.name)?.trim();
-                      if (!name) return;
-                      const description = window.prompt(
-                        "Project description:",
-                        selectedProjectObj.description
-                      );
-                      if (description === null) return;
-                      const status = window.prompt(
-                        "Project status (In Progress, Pending, Completed, Not Started):",
-                        selectedProjectObj.status
-                      );
-                      if (status === null) return;
-                      const statuses: ProjectItem["status"][] = [
-                        "In Progress",
-                        "Pending",
-                        "Completed",
-                        "Not Started",
-                      ];
-                      const validStatus = statuses.find((candidate) => candidate === status);
-                      if (!validStatus) {
-                        setNotice("Enter a valid project status.");
-                        return;
-                      }
-                      const dueDate = window.prompt("Project due date:", selectedProjectObj.dueDate);
-                      if (dueDate === null) return;
-                      setProjectsList((previous) =>
-                        previous.map((project) =>
-                          project.id === selectedProjectObj.id
-                            ? {
-                                ...project,
-                                name,
-                                description: description.trim(),
-                                status: validStatus,
-                                dueDate: dueDate.trim(),
-                              }
-                            : project
-                        )
-                      );
-                      setTasks((previous) =>
-                        previous.map((task) =>
-                          task.project === selectedProjectObj.name
-                            ? { ...task, project: name, projectCode: name.charAt(0).toUpperCase() }
-                            : task
-                        )
-                      );
-                      setTeamsList((previous) =>
-                        previous.map((team) =>
-                          team.project === selectedProjectObj.name
-                            ? { ...team, project: name }
-                            : team
-                        )
-                      );
-                      setNotice(`Project "${name}" updated.`);
-                    }}
-                  >
-                    Edit Project
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-modal-cancel"
-                    onClick={() => {
-                      if (!window.confirm(`Delete "${selectedProjectObj.name}" and its tasks/teams?`)) return;
-                      setProjectsList((previous) =>
-                        previous.filter((project) => project.id !== selectedProjectObj.id)
-                      );
-                      setTeamsList((previous) =>
-                        previous.filter((team) => team.project !== selectedProjectObj.name)
-                      );
-                      setTasks((previous) =>
-                        previous.filter((task) => task.project !== selectedProjectObj.name)
-                      );
-                      if (
-                        tasks.some(
-                          (task) => task.id === runningTaskId && task.project === selectedProjectObj.name
-                        )
-                      ) {
-                        setRunningTaskId(null);
-                      }
-                      setSelectedProjectId(null);
-                      setNotice(`Project "${selectedProjectObj.name}" and its related data were deleted.`);
-                    }}
-                  >
-                    Delete Project
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                className="btn-modal-cancel"
-                onClick={() => setSelectedProjectId(null)}
-              >
-                Close
-              </button>
-            </div>
           </div>
         </section>
       )}
 
-      {/* TASK DETAILS MODAL */}
+      {/* TASK DETAILS PAGE */}
       {selectedTaskObj && (
-        <div className="modal-overlay" onClick={() => setSelectedTaskId(null)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+        <section className="workspace-page-view task-detail-page-view" aria-label="Task details">
+          <div className="project-detail-page-view-body">
             <div className="modal-header">
-              <div>
-                <span className="modal-sub-tag">{selectedTaskObj.id} · {selectedTaskObj.project}</span>
-                <h2>{selectedTaskObj.title}</h2>
+              <div className="project-details-page-heading">
+                <button type="button" className="workspace-page-back" onClick={() => setSelectedTaskId(null)}>
+                  <span aria-hidden="true">←</span> All Tasks
+                </button>
+                <div>
+                  <h2>All Tasks</h2>
+                  <span>Task details</span>
+                </div>
               </div>
-              <button type="button" className="close-btn" onClick={() => setSelectedTaskId(null)}>×</button>
             </div>
 
             <div className="modal-body-scroll">
@@ -4445,36 +3900,79 @@ export default function App() {
               )}
             </div>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* TEAM DETAILS MODAL */}
+      {/* TEAM DETAILS PAGE */}
       {selectedTeamObj && (
-        <div className="modal-overlay" onClick={() => setSelectedTeamId(null)}>
-          <div className="modal-dialog large" onClick={(e) => e.stopPropagation()}>
+        <section className="workspace-page-view team-detail-page-view" aria-label="Team details">
+          <div className="project-detail-page-view-body">
             <div className="modal-header">
-              <div>
-                <span className="modal-sub-tag">Project: {selectedTeamObj.project}</span>
-                <h2>{selectedTeamObj.name}</h2>
+              <div className="project-details-page-heading">
+                <button type="button" className="workspace-page-back" onClick={() => setSelectedTeamId(null)}>
+                  <span aria-hidden="true">←</span> All Teams
+                </button>
+                <div>
+                  <h2>All Teams</h2>
+                  <span>Team details</span>
+                </div>
               </div>
-              <button type="button" className="close-btn" onClick={() => setSelectedTeamId(null)}>×</button>
             </div>
 
             <div className="modal-body-scroll">
-              <p className="modal-description-lead">{selectedTeamObj.description}</p>
+              <div className="team-detail-overview-grid">
+                <section className="team-detail-info-card">
+                  <span className="team-detail-status">{selectedTeamObj.completedTasks === selectedTeamObj.totalTasks ? "Inactive" : "Active"}</span>
+                  <h3># {selectedTeamObj.name}</h3>
+                  <p className="team-detail-project">Project: <strong>{selectedTeamObj.project}</strong></p>
+                  <p className="team-detail-description">{selectedTeamObj.description}</p>
+                  <div className="team-detail-lead">
+                    <span className="team-detail-avatar">
+                      {selectedTeamObj.lead.split(" ").map((part) => part[0]).join("").slice(0, 2)}
+                      <i />
+                    </span>
+                    <div>
+                      <small>Team Lead</small>
+                      <strong>{selectedTeamObj.lead}</strong>
+                      <span>{selectedTeamObj.leadEmail}</span>
+                    </div>
+                  </div>
+                  <div className="team-detail-stat-grid">
+                    <div><span>Total Tasks</span><strong>{selectedTeamObj.totalTasks}</strong></div>
+                    <div><span>Completed</span><strong>{selectedTeamObj.completedTasks}</strong></div>
+                    <div><span>Members</span><strong>{selectedTeamObj.members.length}</strong></div>
+                  </div>
+                </section>
 
-              <div className="team-lead-strip" style={{ marginBottom: "20px" }}>
-                <img src={selectedTeamObj.leadAvatar} alt={selectedTeamObj.lead} className="lead-strip-avatar" />
-                <div className="lead-strip-info">
-                  <span className="lead-strip-title">TEAM LEAD</span>
-                  <strong>{selectedTeamObj.lead}</strong>
-                  <small>{selectedTeamObj.leadEmail}</small>
-                </div>
+                <section className="team-detail-members-card">
+                  <h4>Members &amp; Active Status</h4>
+                  {selectedTeamObj.members.map((member) => (
+                    <div className="team-detail-member-row" key={member.id}>
+                      <span className="team-detail-avatar">
+                        {member.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}
+                        <i />
+                      </span>
+                      <div>
+                        <strong>{member.name}</strong>
+                        <span>{member.status === "Active" ? "Active now" : member.status}</span>
+                      </div>
+                      <small>{member.activeTasks} {member.activeTasks === 1 ? "task" : "tasks"}</small>
+                      {isManager && (
+                        <button
+                          type="button"
+                          className="team-detail-remove-member"
+                          onClick={() => removeTeamMember(selectedTeamObj, member)}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </section>
               </div>
 
-              <h4 className="detail-section-title">All Team Members & Task Loads</h4>
               {isManager && (
-                <div className="view-action-bar">
+                <div className="team-detail-actions">
                   <button
                     type="button"
                     className="btn-team-secondary"
@@ -4491,77 +3989,44 @@ export default function App() {
                   </button>
                 </div>
               )}
-              <table className="team-members-table">
-                <thead>
-                  <tr>
-                    <th>MEMBER</th>
-                    <th>ROLE</th>
-                    <th>EMAIL</th>
-                    <th>STATUS</th>
-                    <th>ACTIVE TASKS</th>
-                    {isManager && <th>ACTIONS</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedTeamObj.members.map((member) => (
-                    <tr key={member.id}>
-                      <td>
-                        <div className="member-name-cell">
-                          <img src={member.avatar} alt={member.name} className="m-table-avatar" />
-                          <strong>{member.name}</strong>
-                        </div>
-                      </td>
-                      <td>{member.role}</td>
-                      <td><small>{member.email}</small></td>
-                      <td>
-                        <span className={`status-dot-indicator ${member.status.toLowerCase()}`}>
-                          ● {member.status}
-                        </span>
-                      </td>
-                      <td>
-                        <strong>{member.activeTasks} tasks</strong>
-                      </td>
-                      {isManager && (
-                        <td>
-                          <button
-                            type="button"
-                            className="btn-table-action"
-                            onClick={() => removeTeamMember(selectedTeamObj, member)}
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      )}
+              <section className="team-detail-task-card">
+                <h4>Members &amp; Active Tasks</h4>
+                <table className="team-detail-task-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Task</th>
+                      <th>Assigned by</th>
+                      <th>Time spent</th>
+                      <th>Status</th>
+                      <th aria-label="Open task" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="modal-actions-footer">
-              <button
-                type="button"
-                className="btn-modal-cancel"
-                onClick={() => setSelectedTeamId(null)}
-              >
-                Close
-              </button>
-              {(isManager || isTeamLead) && (
-                <button
-                  type="button"
-                  className="btn-modal-submit"
-                  onClick={() => {
-                    setSelectedTeamId(null);
-                    setNewTaskProject(selectedTeamObj.project);
-                    setShowAssignTaskModal(true);
-                  }}
-                >
-                  Assign Task to Squad →
-                </button>
-              )}
+                  </thead>
+                  <tbody>
+                    {tasks.filter((task) => task.project === selectedTeamObj.project).map((task) => (
+                      <tr key={task.id} onClick={() => setSelectedTaskId(task.id)}>
+                        <td>
+                          <div className="team-detail-table-person">
+                            <span className="team-detail-avatar small">
+                              {task.assignedTo.split(" ").map((part) => part[0]).join("").slice(0, 2)}
+                              <i />
+                            </span>
+                            <strong>{task.assignedTo}</strong>
+                          </div>
+                        </td>
+                        <td><strong>{task.title}</strong></td>
+                        <td>{task.assignedBy}</td>
+                        <td>{formatTimer(task.timeSpentSeconds).replace(/^(00:)/, "")}</td>
+                        <td><span className={`team-task-status ${task.status.toLowerCase().replace(/\s+/g, "-")}`}>{task.status}</span></td>
+                        <td><span className="team-task-open">›</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
             </div>
           </div>
-        </div>
+        </section>
       )}
     </main>
   );

@@ -758,7 +758,7 @@ h2.t {
 }
 
 .g4 {
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .g2 {
@@ -876,6 +876,17 @@ h2.t {
 .tbl {
   padding: 0;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gb2) transparent;
+}
+
+.tbl.fix {
+  height: calc(100vh - 240px);
+  min-height: 260px;
+}
+
+.tbl.mid {
+  max-height: 340px;
 }
 
 table {
@@ -884,6 +895,9 @@ table {
 }
 
 th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   text-align: left;
   color: var(--gbd);
   font-size: 11px;
@@ -923,6 +937,7 @@ tr.cl:hover {
 }
 
 .pill.Review,
+.pill.Pending,
 .pill.Medium {
   background: #f5e3b8;
   color: #7a5410;
@@ -1322,4 +1337,129 @@ tr.cl:hover {
     animation: none!important;
     transition: none!important;
   }
+}
+
+.cap {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.mp {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--bd);
+  border-radius: 16px;
+  background: var(--pw2);
+}
+
+.mlist {
+  display: grid;
+  gap: 2px;
+  height: 150px;
+  overflow: auto;
+  align-content: start;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gb2) transparent;
+}
+
+.modal .mrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: .15s;
+}
+
+.modal .mrow:hover {
+  background: var(--pw3);
+}
+
+.mn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mn b {
+  display: block;
+  line-height: 1.2;
+}
+
+.mn small {
+  display: block;
+  font-size: 11px;
+}
+
+.mrow input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--gbd);
+  flex: none;
+}
+
+.mfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--bd);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--gbd);
+}
+
+.cbox {
+  display: grid;
+  gap: 8px;
+}
+
+.crow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.crow input {
+  flex: 1;
+}
+
+.cli {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  background: var(--pw2);
+}
+
+.cli span {
+  flex: 1;
+}
+
+.ckrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--bd);
+  cursor: pointer;
+}
+
+.ckrow input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--gbd);
+}
+
+.done {
+  text-decoration: line-through;
+  color: var(--mu);
 }

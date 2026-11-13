@@ -40,9 +40,9 @@ import "./style.css";
 
 const K = "wf_state_v1",
   WS = {
-    manager: "Manager Workspace",
-    lead: "Team Lead Workspace",
-    employee: "Employee Workspace",
+    manager: "Team",
+    lead: "Team & Invoice",
+    employee: "Invoice",
   };
 
 // ============================================================
@@ -135,6 +135,7 @@ const T = (id, title, project, assignee, by, priority, due, status, secs = 0) =>
       secs,
       log: [{ t: "01/11/26", txt: "Task assigned by " + by }],
       reports: [],
+      checklist: [],
     }
   );
 
@@ -302,6 +303,23 @@ const load = () => {
   }
 };
 
+const USERS_BASE = PEOPLE.map((n) => ({
+  name: n,
+  email: n.toLowerCase().replace(/ /g, ".") + "@workflow.com",
+  username: n.split(" ")[0].toLowerCase(),
+}));
+
+function getUsers() {
+  let accs = [];
+  try {
+    accs = JSON.parse(localStorage.getItem("wf_acc") || "[]");
+  } catch (e) {}
+  const extra = accs
+    .filter((x) => !USERS_BASE.some((b) => b.email === x.email))
+    .map((x) => ({ name: x.name, email: x.email, username: x.user }));
+  return [...USERS_BASE, ...extra];
+}
+
 function Modal({ title, onClose, children }) {
   return (
     <div className="modal" onClick={onClose}>
@@ -329,6 +347,10 @@ const ICONS = {
   "In Progress": "Zap",
   "Under Review": "Eye",
   "Logged Hours": "Clock",
+  "Tasks": "ListTodo",
+  "Upcoming": "Clock",
+  "In Progress Projects": "Zap",
+  "Completed Projects": "Check",
 };
 
 function LiveTime({ t, timer }) {
@@ -453,9 +475,9 @@ function Auth({ c }) {
   return (
     <div className="auth">
       <div className="hero">
-        <div className="logo" style={{ marginBottom: 10 }}>W</div>
+        <div className="logo" style={{ marginBottom: 10 }}>W.</div>
         <b style={{ letterSpacing: ".12em", fontSize: 12 }}>WORK FLOW PLATFORM</b>
-        <h1>Welcome to<br />Work Flow</h1>
+        <h1>Welcome to<br />Work Flow.</h1>
         <p>Your work, your teams and your projects, unified in one place.</p>
       </div>
       <div className="box">
@@ -642,7 +664,7 @@ function Auth({ c }) {
                       />
                       <span className="wi"><Icon n={WSI[w]} s={20} /></span>
                       <span className="wt">
-                        <b>{{ manager: "Manager", lead: "Team Lead", employee: "Employee" }[w]}</b>
+                        <b>{WS[w]}</b>
                         <small>{WSD[w]}</small>
                       </span>
                       <span className="wc">{on && <Icon n="Check" s={14} />}</span>
@@ -768,18 +790,43 @@ function Chat({ c, kind }) {
   );
 }
 
+let toastFn = null;
+const showToast = (m) => {
+  if (toastFn) {
+    toastFn(m);
+  }
+};
+
+function ToastHost() {
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    toastFn = setMsg;
+    return () => {
+      toastFn = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (!msg) {
+      return;
+    }
+    const t = setTimeout(() => setMsg(""), 2600);
+    return () => clearTimeout(t);
+  }, [msg]);
+  return msg ? <div className="toast">{msg}</div> : null;
+}
+
 function App() {
   const [s, setS] = useState(load),
     [route, setRoute] = useState({ p: "overview" }),
     [hist, setHist] = useState([]),
     [dd, setDd] = useState(false),
-    [toast, setToast] = useState(""),
     [modal, setModal] = useState(null),
     [flt, setFlt] = useState("All"),
     [tq, setTq] = useState(""),
     [tp, setTp] = useState("All"),
     [mq, setMq] = useState(""),
     [mf, setMf] = useState("All");
+  const setToast = showToast;
 
   useEffect(() => {
     try {
@@ -822,12 +869,6 @@ function App() {
     };
   }, [dd]);
 
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(""), 2600);
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
   const up = (fn) =>
     setS((p) => {
       const d = JSON.parse(JSON.stringify(p));
@@ -871,6 +912,17 @@ function App() {
       ? Math.round(t.filter((x) => x.status === "Completed").length / t.length * 100)
       : 0;
   };
+  const pstat = (p) => {
+    const ts = s.tasks.filter((x) => x.project === p.name);
+    if (ts.length && ts.every((x) => x.status === "Completed")) {
+      return "Completed";
+    }
+    if (ts.some((x) => x.status !== "To Do")) {
+      return "In Progress";
+    }
+    return "Pending";
+  };
+
   const switchWs = (w) => {
     up((d) => {
       d.ws = w;
@@ -921,86 +973,140 @@ function App() {
   const Assign = () => {
     const [f, setF] = useState({
       title: "",
+      desc: "",
       project: projects[0]?.name || "",
       assignee: "",
-      desc: "",
       priority: "Medium",
       due: "2026-11-30",
+      items: [],
+      ci: "",
     });
     const ms = mems(f.project);
-    const as = f.assignee || ms[0] || "";
+    const as = ms.includes(f.assignee) ? f.assignee : ms[0] || "";
+    const addItem = () => {
+      const t = f.ci.trim();
+      if (t) {
+        setF({ ...f, items: [...f.items, t], ci: "" });
+      }
+    };
 
     return (
       <Modal title="Assign Task" onClose={() => setModal(null)}>
-        <form
-          className="grid"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const id = "TASK-" + (1100 + s.tasks.length);
-            up((d) => {
-              d.tasks.unshift({
-                ...T(id, f.title, f.project, as, u.name, f.priority, f.due, "To Do"),
-                desc: f.desc || "Assigned task.",
-              });
-              note(d, `${u.name} assigned you ${id}`, "Task Assigned", id);
-            });
-            setModal(null);
-            setToast("Task assigned to " + as);
-          }}
-        >
-          <label>
-            Task Title *
-            <input
-              required
-              placeholder="e.g. Implement Webhook retry architecture"
-              value={f.title}
-              onChange={(e) => setF({ ...f, title: e.target.value })}
-            />
-          </label>
-          <label>
-            Select Project *
-            <select
-              value={f.project}
-              onChange={(e) => setF({ ...f, project: e.target.value, assignee: "" })}
+        {!projects.length
+          ? <p className="mu">There are no projects yet. Create a project first.</p>
+          : (
+            <form
+              className="grid"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!as) {
+                  return;
+                }
+                const id = "TASK-" +
+                  (Math.max(1100, ...s.tasks.map((x) => parseInt(x.id.slice(5)) || 0)) + 1);
+                up((d) => {
+                  d.tasks.unshift({
+                    ...T(id, f.title, f.project, as, u.name, f.priority, f.due, "To Do"),
+                    desc: f.desc || "Assigned task.",
+                    checklist: f.items.map((t) => ({ t, done: false })),
+                  });
+                  note(d, `${u.name} assigned you ${id}`, "Task Assigned", id);
+                });
+                setModal(null);
+                setToast("Task assigned to " + as);
+              }}
             >
-              {projects.map((p) => <option key={p.id}>{p.name}</option>)}
-            </select>
-          </label>
-          <label>
-            Assign to Employee *
-            <select value={as} onChange={(e) => setF({ ...f, assignee: e.target.value })}>
-              {ms.map((m) => <option key={m}>{m}</option>)}
-            </select>
-          </label>
-          <label>
-            Task Description
-            <textarea
-              rows={3}
-              placeholder="Acceptance checklist, endpoints, requirements..."
-              value={f.desc}
-              onChange={(e) => setF({ ...f, desc: e.target.value })}
-            />
-          </label>
-          <div className="row">
-            <label style={{ flex: 1 }}>
-              Priority
-              <select value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value })}>
-                <option>High</option>
-                <option>Medium</option>
-                <option>Low</option>
-              </select>
-            </label>
-            <label style={{ flex: 1 }}>
-              Due Date
-              <input
-                type="date"
-                value={f.due}
-                onChange={(e) => setF({ ...f, due: e.target.value })}
-              />
-            </label>
-          </div>
-          <button className="btn">Assign Task</button>
-        </form>
+              <label>
+                Title *
+                <input
+                  required
+                  placeholder="e.g. Implement Webhook retry architecture"
+                  value={f.title}
+                  onChange={(e) => setF({ ...f, title: e.target.value })}
+                />
+              </label>
+              <label>
+                Description
+                <textarea
+                  rows={3}
+                  placeholder="Requirements, endpoints, expected outcome..."
+                  value={f.desc}
+                  onChange={(e) => setF({ ...f, desc: e.target.value })}
+                />
+              </label>
+              <label>
+                Project *
+                <select
+                  value={f.project}
+                  onChange={(e) => setF({ ...f, project: e.target.value, assignee: "" })}
+                >
+                  {projects.map((p) => <option key={p.id}>{p.name}</option>)}
+                </select>
+              </label>
+              <label>
+                Assigned to *
+                <select value={as} onChange={(e) => setF({ ...f, assignee: e.target.value })}>
+                  {ms.map((m) => <option key={m}>{m}</option>)}
+                </select>
+              </label>
+              <div className="row">
+                <label style={{ flex: 1 }}>
+                  Priority
+                  <select
+                    value={f.priority}
+                    onChange={(e) => setF({ ...f, priority: e.target.value })}
+                  >
+                    <option>High</option>
+                    <option>Medium</option>
+                    <option>Low</option>
+                  </select>
+                </label>
+                <label style={{ flex: 1 }}>
+                  Due Date
+                  <input
+                    type="date"
+                    value={f.due}
+                    onChange={(e) => setF({ ...f, due: e.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="cbox">
+                <span className="cap">Checklist</span>
+                <div className="crow">
+                  <input
+                    placeholder="Add a checklist item"
+                    value={f.ci}
+                    onChange={(e) => setF({ ...f, ci: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addItem();
+                      }
+                    }}
+                  />
+                  <button type="button" className="btn sm sec" onClick={addItem}>
+                    <Icon n="Plus" s={16} />
+                    Add
+                  </button>
+                </div>
+                {f.items.map((t, i) => (
+                  <div key={i} className="cli">
+                    <Icon n="Check" s={16} />
+                    <span>{t}</span>
+                    <button
+                      type="button"
+                      className="link"
+                      aria-label="Remove item"
+                      onClick={() => setF({ ...f, items: f.items.filter((_, j) => j !== i) })}
+                    >
+                      <Icon n="X" s={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button className="btn">Assign Task</button>
+            </form>
+          )}
       </Modal>
     );
   };
@@ -1009,12 +1115,25 @@ function App() {
     const [f, setF] = useState({
       name: "",
       desc: "",
-      lead: PEOPLE[0],
-      team: SQ[0],
-      members: [],
       due: "2026-12-31",
-      status: "In Progress",
+      team: "",
+      members: [],
+      lead: "",
     });
+    const [draft, setDraft] = useState([]);
+    const [q, setQ] = useState("");
+    const [err, setErr] = useState("");
+    const shown = getUsers().filter((x) =>
+      (x.name + " " + x.email + " " + x.username).toLowerCase().includes(q.toLowerCase()));
+    const dirty = draft.length !== f.members.length || draft.some((n) => !f.members.includes(n));
+
+    const saveMembers = () => {
+      if (!draft.length) {
+        return setErr("Select at least one team member.");
+      }
+      setErr("");
+      setF({ ...f, members: draft, lead: draft.includes(f.lead) ? f.lead : "" });
+    };
 
     return (
       <Modal title="Create Project" onClose={() => setModal(null)}>
@@ -1022,21 +1141,29 @@ function App() {
           className="grid"
           onSubmit={(e) => {
             e.preventDefault();
-
+            if (s.projects.some((x) => x.name.toLowerCase() === f.name.trim().toLowerCase())) {
+              return setErr("A project with this name already exists.");
+            }
+            if (!f.members.length || dirty) {
+              return setErr("Select the team members and click Save.");
+            }
+            if (!f.lead) {
+              return setErr("Choose a team lead.");
+            }
             up((d) => {
+              const n = Math.max(0, ...d.projects.map((x) => parseInt(x.id.slice(2)) || 0)) + 1;
               d.projects.unshift({
-                id: "P-" + (d.projects.length + 1),
-                name: f.name,
+                id: "P-" + n,
+                name: f.name.trim(),
                 desc: f.desc,
                 lead: f.lead,
-                team: f.team,
-                members: [...new Set([f.lead, ...f.members])],
+                team: f.team.trim(),
+                members: f.members,
                 due: f.due,
-                status: f.status,
+                status: "Pending",
               });
-              note(d, `Project ${f.name} created`, "Project Updates");
+              note(d, `Project ${f.name.trim()} created`, "Project Updates");
             });
-
             setModal(null);
             setToast("Project created");
           }}
@@ -1059,39 +1186,6 @@ function App() {
               onChange={(e) => setF({ ...f, desc: e.target.value })}
             />
           </label>
-          <label>
-            Assign Team Lead *
-            <select value={f.lead} onChange={(e) => setF({ ...f, lead: e.target.value })}>
-              {PEOPLE.map((p) => <option key={p}>{p}</option>)}
-            </select>
-          </label>
-          <label>
-            Team Squad
-            <select value={f.team} onChange={(e) => setF({ ...f, team: e.target.value })}>
-              {SQ.map((p) => <option key={p}>{p}</option>)}
-            </select>
-          </label>
-          <label>
-            Select Team Members
-            <div className="chk">
-              {PEOPLE.map((p) => (
-                <label key={p}>
-                  <input
-                    type="checkbox"
-                    checked={f.members.includes(p)}
-                    onChange={() =>
-                      setF({
-                        ...f,
-                        members: f.members.includes(p)
-                          ? f.members.filter((x) => x !== p)
-                          : [...f.members, p],
-                      })}
-                  />
-                  {p}
-                </label>
-              ))}
-            </div>
-          </label>
           <div className="row">
             <label style={{ flex: 1 }}>
               Due Date
@@ -1102,14 +1196,65 @@ function App() {
               />
             </label>
             <label style={{ flex: 1 }}>
-              Status
-              <select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>
-                <option>In Progress</option>
-                <option>Pending</option>
-                <option>Not Started</option>
-              </select>
+              Team Name *
+              <input
+                required
+                placeholder="e.g. Alpha Engineering"
+                value={f.team}
+                onChange={(e) => setF({ ...f, team: e.target.value })}
+              />
             </label>
           </div>
+          <div className="mp">
+            <span className="cap">Select Team Members</span>
+            <div className="search" style={{ maxWidth: "none" }}>
+              <span><Icon n="Search" s={18} /></span>
+              <input
+                placeholder="Search email or user name"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </div>
+            <div className="mlist">
+              {shown.map((x) => (
+                <label key={x.email} className="mrow">
+                  <span className="mn">
+                    <span className="avatar">{ini(x.name)}</span>
+                    <span><b>{x.name}</b><small className="mu">{x.email}</small></span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={draft.includes(x.name)}
+                    onChange={() =>
+                      setDraft(
+                        draft.includes(x.name)
+                          ? draft.filter((n) => n !== x.name)
+                          : [...draft, x.name],
+                      )}
+                  />
+                </label>
+              ))}
+              {!shown.length && <span className="mu">No matching users.</span>}
+            </div>
+            <div className="mfoot">
+              <span>{draft.length} selected{!dirty && f.members.length > 0 && " · saved"}</span>
+              <button type="button" className="btn sm" onClick={saveMembers}>Save</button>
+            </div>
+          </div>
+          <label>
+            Team Lead *
+            <select
+              value={f.lead}
+              disabled={!f.members.length}
+              onChange={(e) => setF({ ...f, lead: e.target.value })}
+            >
+              <option value="">
+                {f.members.length ? "Select team lead" : "Save team members first"}
+              </option>
+              {f.members.map((m) => <option key={m}>{m}</option>)}
+            </select>
+          </label>
+          {err && <div className="err">{err}</div>}
           <button className="btn">Create Project</button>
         </form>
       </Modal>
@@ -1303,6 +1448,30 @@ function App() {
               </button>
             )}
         </div>
+        <div className="card">
+          <div className="row sp">
+            <b>Checklist</b>
+            <span className="mu">
+              {(t.checklist || []).filter((x) => x.done).length}/{(t.checklist || []).length}
+            </span>
+          </div>
+          {(t.checklist || []).map((it, i) => (
+            <label key={i} className="ckrow">
+              <input
+                type="checkbox"
+                checked={it.done}
+                disabled={!(t.assignee === u.name || L || M)}
+                onChange={() =>
+                  up((d) => {
+                    const k = d.tasks.find((x) => x.id === t.id);
+                    k.checklist[i].done = !k.checklist[i].done;
+                  })}
+              />
+              <span className={it.done ? "done" : ""}>{it.t}</span>
+            </label>
+          ))}
+          {!(t.checklist || []).length && <span className="mu">No checklist items.</span>}
+        </div>
         <div className="grid g2">
           <div className="card">
             <b>Time Tracking</b>
@@ -1495,8 +1664,8 @@ function App() {
     t.status !== "Completed" &&
       (M || (L && pn.includes(t.project)) || (E && t.assignee === u.name && t.status !== "Review"));
 
-  const TaskTable = ({ list }) => (
-    <div className="card tbl">
+  const TaskTable = ({ list, size }) => (
+    <div className={"card tbl " + (size || "")}>
       <table>
         <thead>
           <tr>
@@ -1508,8 +1677,6 @@ function App() {
             <th>Priority</th>
             <th>Due</th>
             <th>Status</th>
-            <th>Time</th>
-            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -1523,20 +1690,6 @@ function App() {
               <td><Pill v={t.priority} /></td>
               <td>{t.due}</td>
               <td><Pill v={t.status} /></td>
-              <td><LiveTime t={t} timer={s.timer} /></td>
-              <td>
-                {canRe(t) && (
-                    <button
-                      className="btn sm sec"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setModal({ k: "reassign", t });
-                      }}
-                    >
-                      Reassign Task
-                    </button>
-                  )}
-              </td>
             </tr>
           ))}
         </tbody>
@@ -1554,14 +1707,16 @@ function App() {
       rv = tasks.filter((t) => t.status === "Review").length,
       pe = tasks.filter((t) => t.status === "To Do").length;
 
+    const today = new Date().toISOString().slice(0, 10);
+    const upcoming = tasks.filter((t) => t.status !== "Completed" && t.due >= today).length;
+
     const stats = M
       ? [
         ["Total Projects", s.projects.length],
-        ["Total Teams", SQ.length],
-        ["Total Employees", PEOPLE.length],
-        ["Active Tasks", ip],
-        ["Completed", d],
-        ["Pending", pe],
+        ["Total Teams", new Set(s.projects.map((x) => x.team)).size],
+        ["Total Tasks", s.tasks.length],
+        ["In Progress Projects", s.projects.filter((x) => pstat(x) === "In Progress").length],
+        ["Completed Projects", s.projects.filter((x) => pstat(x) === "Completed").length],
       ]
       : L
         ? [
@@ -1574,16 +1729,15 @@ function App() {
         ]
         : [
           ["Projects", projects.length],
-          ["Total Tasks", tasks.length],
-          ["Completed", d],
+          ["Tasks", tasks.length],
           ["In Progress", ip],
-          ["Pending", pe],
+          ["Upcoming", upcoming],
           ["Logged Hours", fmt(tasks.reduce((a, t) => a + secs(t), 0)).slice(0, -3)],
         ];
 
     page = (
       <div className="grid">
-        <h2 className="t" style={{ margin: 0 }}>{WS[ws].replace(" Workspace", "")} Overview</h2>
+        <h2 className="t" style={{ margin: 0 }}>Overview</h2>
         <div className="grid g4">
           {stats.map(([a, b]) => (
             <div key={a} className="card stat">
@@ -1706,7 +1860,7 @@ function App() {
               </button>
             )}
         </div>
-        <ProjList projects={projects} prog={prog} go={go} s={s} />
+        <ProjList projects={projects} prog={prog} pstat={pstat} go={go} s={s} />
       </div>
     );
   }
@@ -1724,7 +1878,7 @@ function App() {
                 <span className="mu">{x.id}</span>
                 <h2 style={{ margin: "2px 0" }}>{x.name}</h2>
               </div>
-              <Pill v={x.status} />
+              <Pill v={pstat(x)} />
             </div>
             <p>{x.desc}</p>
             <div className="mu">Lead <b>{x.lead}</b> · Team {x.team} · Due {x.due}</div>
@@ -1736,18 +1890,6 @@ function App() {
             </div>
             {M && (
                 <div className="row" style={{ marginTop: 10 }}>
-                  <select
-                    style={{ width: 150 }}
-                    value={x.status}
-                    onChange={(e) =>
-                      up((d) => {
-                        d.projects.find((y) => y.id === x.id).status = e.target.value;
-                      })}
-                  >
-                    {["In Progress", "Pending", "Not Started", "Completed"].map((z) => (
-                      <option key={z}>{z}</option>
-                    ))}
-                  </select>
                   <button
                     className="btn red sm"
                     onClick={() => {
@@ -1767,6 +1909,7 @@ function App() {
           </div>
           <TaskTable
             list={s.tasks.filter((t) => t.project === x.name && (M || tasks.includes(t)))}
+            size="mid"
           />
         </div>
       );
@@ -1801,7 +1944,7 @@ function App() {
             {[...new Set(projects.map((x) => x.team))].map((x) => <option key={x}>{x}</option>)}
           </select>
         </div>
-        <div className="card tbl">
+        <div className="card tbl fix">
           <table>
             <thead>
               <tr>
@@ -1880,7 +2023,7 @@ function App() {
             ))}
           </select>
         </div>
-        <TaskTable list={fl} />
+        <TaskTable list={fl} size="fix" />
       </div>
     );
   }
@@ -1995,7 +2138,7 @@ function App() {
           <Icon n={side ? "ChevronLeft" : "ChevronRight"} s={16} />
         </button>
         <div className="brand">
-          <div className="logo">W</div>
+          <div className="logo">W.</div>
           {side && <div className="brandtx"><b>Work Flow</b><small>{WS[ws]}</small></div>}
         </div>
         <nav className="navs">
@@ -2076,16 +2219,16 @@ function App() {
       {modal?.k === "team" && <TeamModal x={modal.x} />}
       {modal?.k === "proj" && <NewProject />}
       {modal?.k === "report" && <Report t={modal.t} />}
-      {toast && <div className="toast">{toast}</div>}
+      <ToastHost />
     </div>
   );
 }
 
-function ProjList({ projects, prog, go, s }) {
+function ProjList({ projects, prog, pstat, go, s }) {
   const [q, setQ] = useState(""),
     [st, setSt] = useState("All");
   const l = projects.filter((p) =>
-    (st === "All" || p.status === st) &&
+    (st === "All" || pstat(p) === st) &&
       (p.name + p.team + p.lead).toLowerCase().includes(q.toLowerCase()));
 
   return (
@@ -2100,12 +2243,12 @@ function ProjList({ projects, prog, go, s }) {
           />
         </div>
         <select value={st} onChange={(e) => setSt(e.target.value)}>
-          {["All", "In Progress", "Pending", "Not Started", "Completed"].map((x) => (
+          {["All", "Pending", "In Progress", "Completed"].map((x) => (
             <option key={x}>{x}</option>
           ))}
         </select>
       </div>
-      <div className="card tbl">
+      <div className="card tbl fix">
         <table>
           <thead>
             <tr>
@@ -2132,7 +2275,7 @@ function ProjList({ projects, prog, go, s }) {
                   <td>{t.filter((x) => x.status === "Completed").length}/{t.length}</td>
                   <td style={{ minWidth: 100 }}><Bar v={prog(p)} /></td>
                   <td>{p.due}</td>
-                  <td><Pill v={p.status} /></td>
+                  <td><Pill v={pstat(p)} /></td>
                 </tr>
               );
             })}

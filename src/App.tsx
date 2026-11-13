@@ -40,7 +40,6 @@ import "./style.css";
 
 const K = "wf_state_v1",
   WS = {
-    manager: "Team",
     lead: "Team & Invoice",
     employee: "Invoice",
   };
@@ -88,12 +87,11 @@ function Icon({ n, s = 20 }) {
 }
 
 const WSD = {
-  manager: "Create projects and teams, assign work and monitor the whole organisation.",
   lead: "Lead your teams, assign tasks, review submissions and report progress.",
   employee: "View assigned projects and tasks, track time and submit work for review.",
 };
 
-const WSI = { manager: "Briefcase", lead: "UsersRound", employee: "User" };
+const WSI = { lead: "UsersRound", employee: "User" };
 
 const ST = ["To Do", "In Progress", "Review", "Completed"],
   PEOPLE = [
@@ -394,11 +392,14 @@ function Auth({ c }) {
       return [];
     }
   };
-  const login = (u) =>
+  const login = (u) => {
+    const workspaces = (u.ws || []).filter((w) => w === "lead" || w === "employee");
+    const account = { ...u, ws: workspaces.length ? workspaces : ["lead"] };
     c.up((d) => {
-      d.user = u;
-      d.ws = u.ws[0];
+      d.user = account;
+      d.ws = account.ws[0];
     });
+  };
   const to = (n) => {
     setErr("");
     setStep(n);
@@ -419,7 +420,7 @@ function Auth({ c }) {
       return login({
         name: "Arun Patel",
         email: "abc@gmail.com",
-        ws: ["manager", "lead", "employee"],
+        ws: ["lead", "employee"],
       });
     }
     const a = accs().find((x) =>
@@ -464,7 +465,7 @@ function Auth({ c }) {
       email: f.email,
       user: f.user.trim(),
       pw: f.pw1,
-      ws: ["manager", "lead", "employee"].filter((w) => f.ws.includes(w)),
+      ws: ["lead", "employee"].filter((w) => f.ws.includes(w)),
     };
     try {
       localStorage.setItem("wf_acc", JSON.stringify([...accs(), u]));
@@ -651,7 +652,7 @@ function Auth({ c }) {
                 <span className="mu">
                   Select one or more. You can switch anytime from your profile.
                 </span>
-                {["manager", "lead", "employee"].map((w) => {
+                {["lead", "employee"].map((w) => {
                   const on = f.ws.includes(w);
 
                   return (
@@ -817,8 +818,8 @@ function ToastHost() {
 
 function App() {
   const [s, setS] = useState(load),
-    [route, setRoute] = useState({ p: "overview" }),
-    [hist, setHist] = useState([]),
+    [userRoute, setUserRoute] = useState({ p: "overview" }),
+    [userHist, setUserHist] = useState([]),
     [dd, setDd] = useState(false),
     [modal, setModal] = useState(null),
     [flt, setFlt] = useState("All"),
@@ -826,6 +827,10 @@ function App() {
     [tp, setTp] = useState("All"),
     [mq, setMq] = useState(""),
     [mf, setMf] = useState("All");
+  const route = userRoute;
+  const setRoute = setUserRoute;
+  const hist = userHist;
+  const setHist = setUserHist;
   const setToast = showToast;
 
   useEffect(() => {
@@ -875,6 +880,16 @@ function App() {
       fn(d);
       return d;
     });
+  useEffect(() => {
+    if (s.user && (s.ws === "manager" || !["lead", "employee"].includes(s.ws))) {
+      up((d) => {
+        d.ws = "lead";
+        d.user.ws = [...new Set([...(d.user.ws || []), "lead"])].filter(
+          (w) => w === "lead" || w === "employee",
+        );
+      });
+    }
+  }, [s.user, s.ws]);
   const note = (d, txt, cat, task) =>
     d.notifs.unshift({ id: Date.now() + Math.random(), txt, cat, task, un: true, t: "just now" });
   const log = (d, id, txt) => d.tasks.find((t) => t.id === id).log.push({ t: now(), txt });
@@ -896,8 +911,8 @@ function App() {
     return <Auth c={c} />;
   }
   const u = s.user,
-    ws = s.ws,
-    M = ws === "manager",
+    ws = s.ws === "manager" ? "lead" : s.ws,
+    M = false,
     L = ws === "lead",
     E = ws === "employee";
   const projects = s.projects.filter((p) =>
@@ -924,6 +939,9 @@ function App() {
   };
 
   const switchWs = (w) => {
+    if (w !== "lead" && w !== "employee") {
+      return;
+    }
     up((d) => {
       d.ws = w;
     });
@@ -2170,7 +2188,7 @@ function App() {
                 <br />
                 <small className="mu">Current: {WS[ws]}</small>
                 <hr />
-                {u.ws.map((w) => (
+                {(u.ws || []).filter((w) => w === "lead" || w === "employee").map((w) => (
                   <button key={w} className={w === ws ? "cur" : ""} onClick={() => switchWs(w)}>
                     {WS[w]}
                     {w === ws && <Icon n="Check" s={16} />}

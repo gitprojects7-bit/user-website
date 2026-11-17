@@ -948,6 +948,11 @@ tr.cl:hover {
   color: var(--navy);
 }
 
+.pill.Stopped {
+  background: #f3d3cc;
+  color: #8a2f22;
+}
+
 .pill.High {
   background: #f3d3cc;
   color: #8a2f22;
@@ -1462,4 +1467,586 @@ tr.cl:hover {
 .done {
   text-decoration: line-through;
   color: var(--mu);
+}
+
+/* ============================================================
+   Overview layouts (Team & task management + Task management)
+   ============================================================ */
+
+.lo-stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.lo-stats.five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.lo-stats .stat {
+  padding: 14px;
+  gap: 10px;
+}
+
+.lo-stats .stat b {
+  font-size: 26px;
+}
+
+.lo-stats .ic {
+  width: 40px;
+  height: 40px;
+}
+
+.lo-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.lo-row > .card {
+  min-height: 260px;
+}
+
+.lo-scroll {
+  max-height: 260px;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gb2) transparent;
+}
+
+.lo-review {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--bd);
+  cursor: pointer;
+}
+
+.lo-review:hover {
+  color: var(--gbd);
+}
+
+.lo-quick {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.lo-act {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px;
+  border-top: 1px solid var(--bd);
+  cursor: pointer;
+}
+
+.lo-act:hover {
+  background: var(--pw3);
+}
+
+.lo-act .st {
+  font-weight: 700;
+  font-size: 13px;
+  min-width: 84px;
+  text-align: right;
+}
+
+.lo-act .st.Completed {
+  color: var(--gbd);
+}
+
+.lo-act .st.Started {
+  color: #2f7a4d;
+}
+
+.lo-act .st.Stopped {
+  color: #a63a2c;
+}
+
+/* Employee overview */
+.eo-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.eo-curbody {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.eo-curinfo {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  min-width: 0;
+}
+
+.eo-curinfo h3 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -.02em;
+}
+
+.eo-curmeta {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.eo-curtimer {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.eo-curtimer .timer {
+  font-size: 30px;
+}
+
+.eo-tbl {
+  max-height: 300px;
+  overflow: auto;
+  margin-top: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gb2) transparent;
+}
+
+/* ============================================================
+   Task details layouts
+   ============================================================ */
+
+.td-top {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.td-top.emp {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.td-side {
+  display: grid;
+  gap: 14px;
+}
+
+.td-main h2 {
+  margin: 4px 0 6px;
+}
+
+.td-meta {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--bd);
+  border-bottom: 1px solid var(--bd);
+}
+
+.td-meta3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--bd);
+  border-bottom: 1px solid var(--bd);
+}
+
+.td-meta3 small {
+  display: block;
+}
+
+.td-check {
+  columns: 2;
+  column-gap: 28px;
+  margin-top: 6px;
+}
+
+.td-check .ckrow {
+  break-inside: avoid;
+}
+
+.td-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.td-time {
+  text-align: center;
+}
+
+.td-time .timer {
+  font-size: 40px;
+  margin: 6px 0;
+}
+
+.td-ctrl {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+  align-content: start;
+}
+
+.td-ctrl .timer {
+  font-size: 36px;
+}
+
+.td-ctrlbtns {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: 220px;
+  margin-top: 6px;
+}
+
+.td-scroll {
+  max-height: 220px;
+  overflow: auto;
+  margin-top: 8px;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gb2) transparent;
+}
+
+.td-saved .td-scroll {
+  max-height: 240px;
+}
+
+.td-saved .log b {
+  display: block;
+}
+
+@media (max-width: 1100px) {
+  .lo-stats,
+  .lo-stats.five {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1000px) {
+  .lo-row,
+  .eo-row,
+  .td-top,
+  .td-top.emp {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .lo-stats,
+  .lo-stats.five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .td-check {
+    columns: 1;
+  }
+  .td-meta3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   Lead task details: fixed-size layout
+   ============================================================ */
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.topbar .back {
+  margin-bottom: 0;
+}
+
+.td-page {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 190px;
+  height: calc(100vh - 112px);
+  min-height: 480px;
+}
+
+.td-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.td-page .td-saved {
+  grid-column: 1 / -1;
+}
+
+/* checklist scrolls inside the left card */
+.td-page .td-check {
+  columns: auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gb2) transparent;
+}
+
+.td-page .td-check .ckrow {
+  flex: none;
+}
+
+/* right card: timer stays fixed, only activity history scrolls */
+.td-right .td-time {
+  flex: none;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bd);
+}
+
+.td-hist {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 12px;
+}
+
+.td-fill {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin-top: 8px;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gb2) transparent;
+}
+
+.td-fill .log {
+  flex: none;
+}
+
+.td-saved .log b {
+  display: block;
+}
+
+/* "No ... yet" messages centered inside the fixed container */
+.td-empty {
+  margin: auto;
+  text-align: center;
+}
+
+@media (max-width: 1000px) {
+  .td-page {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    height: auto;
+  }
+  .td-page .td-col {
+    max-height: 420px;
+  }
+  .td-page .td-saved {
+    grid-column: auto;
+  }
+}
+
+
+/* ============================================================
+   Bigger Report button (lead task details)
+   ============================================================ */
+
+.btn.report {
+  padding: 13px 30px;
+  font-size: 16px;
+  border-radius: 14px;
+}
+
+.btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+}
+
+/* ============================================================
+   Employee overview: fixed layout
+   ============================================================ */
+
+.eo-page {
+  height: calc(100vh - 60px);
+  min-height: 640px;
+  grid-template-rows: auto auto 250px minmax(0, 1fr);
+}
+
+.eo-page .eo-row {
+  height: 250px;
+  min-height: 0;
+}
+
+.eo-page .eo-cur,
+.eo-page .eo-quick {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.eo-curhead {
+  flex: none;
+  flex-wrap: nowrap;
+}
+
+.eo-cur .eo-curbody {
+  flex: 1;
+  min-height: 0;
+  margin-top: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.eo-cur .eo-curinfo {
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+}
+
+.eo-curdesc {
+  margin: 0;
+  color: var(--mu);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.eo-cur .eo-curtimer {
+  flex: none;
+}
+
+.eo-none {
+  margin: auto;
+  text-align: center;
+}
+
+/* compact quick actions so all 3 fit in the shorter card */
+.eo-quick .lo-quick {
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+  margin-top: 10px;
+  overflow: auto;
+  align-content: start;
+}
+
+.eo-quick .qbtn {
+  padding: 7px 12px;
+  border-radius: 14px;
+}
+
+.eo-quick .qbtn i {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+}
+
+/* upcoming tasks: fills the remaining height, scrolls inside */
+.eo-page .eo-up {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.eo-page .eo-up .eo-tbl {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+/* ============================================================
+   Employee task details: 2 fixed containers
+   ============================================================ */
+
+.td-page.emp {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.td-ctrl.td-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.td-ctrlbody {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  overflow: auto;
+}
+
+.td-ctrlbody .timer {
+  font-size: 40px;
+}
+
+.td-ctrlbody .td-ctrlbtns {
+  margin-top: 0;
+}
+
+.td-form {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 300px;
+  text-align: left;
+}
+
+.td-form label {
+  display: grid;
+  gap: 5px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.td-form textarea {
+  resize: none;
+}
+
+@media (max-width: 1000px) {
+  .eo-page {
+    height: auto;
+    grid-template-rows: none;
+  }
+  .eo-page .eo-row {
+    height: auto;
+  }
+  .eo-page .eo-up .eo-tbl {
+    max-height: 320px;
+  }
+  .td-page.emp {
+    grid-template-columns: 1fr;
+  }
 }

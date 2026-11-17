@@ -3,13 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bell,
-  Briefcase,
   Check,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   Clock,
-  Columns3,
   Eye,
   EyeOff,
   FolderKanban,
@@ -38,11 +36,10 @@ import "./style.css";
 // Constants and demo data
 // ============================================================
 
-const K = "wf_state_v1",
-  WS = {
-    lead: "Team & Invoice",
-    employee: "Invoice",
-  };
+const WS = {
+  lead: "Team & task management",
+  employee: "Task management",
+};
 
 // ============================================================
 // Icons (lucide-react)
@@ -53,7 +50,6 @@ const LIB = {
   FolderKanban,
   UsersRound,
   ListTodo,
-  Columns3,
   MessagesSquare,
   MessageCircle,
   Bell,
@@ -69,7 +65,6 @@ const LIB = {
   Paperclip,
   X,
   User,
-  Briefcase,
   ClipboardCheck,
   Eye,
   UserPlus,
@@ -87,38 +82,30 @@ function Icon({ n, s = 20 }) {
 }
 
 const WSD = {
-  lead: "Lead your teams, assign tasks, review submissions and report progress.",
-  employee: "View assigned projects and tasks, track time and submit work for review.",
+  lead: "Lead your teams, assign tasks and report progress to the Super Admin.",
+  employee: "View assigned projects and tasks, track time and complete your work.",
 };
 
 const WSI = { lead: "UsersRound", employee: "User" };
 
-const ST = ["To Do", "In Progress", "Review", "Completed"],
-  PEOPLE = [
-    "Arun Patel",
-    "Rahul Varma",
-    "Sneha Rao",
-    "Priya Sharma",
-    "Maya Chen",
-    "Alex Morgan",
-    "Chloe Bennett",
-    "Karan Mehta",
-  ];
-
-const SQ = ["Alpha Engineering", "Beta Mobile Squad", "Core HR & Ops", "Analytics & Design"];
+// There is no "Review" status in these workspaces
+const ST = ["To Do", "In Progress", "Stopped", "Completed"];
 
 const now = () => new Date().toLocaleString([], { dateStyle: "short", timeStyle: "short" });
 
 const ini = (n) => n.split(" ").map((x) => x[0]).join("").slice(0, 2);
 
+const slug = (n) => "#" + n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
 const fmt = (s) => {
   s = Math.floor(s);
   const h = Math.floor(s / 3600),
     m = Math.floor(s % 3600 / 60);
-  return `${h}:${String(m).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 };
 
-const T = (id, title, project, assignee, by, priority, due, status, secs = 0) =>
+// Fresh task: status "To Do" and timer 0 (every task starts from scratch)
+const T = (id, title, desc, project, assignee, by, priority, due, items) =>
   (
     {
       id,
@@ -128,15 +115,17 @@ const T = (id, title, project, assignee, by, priority, due, status, secs = 0) =>
       by,
       priority,
       due,
-      status,
-      desc: "Deliver per acceptance checklist and update the team.",
-      secs,
-      log: [{ t: "01/11/26", txt: "Task assigned by " + by }],
+      status: "To Do",
+      desc,
+      secs: 0,
+      log: [{ t: "17/11/2026", txt: "Task assigned by " + by }],
       reports: [],
-      checklist: [],
+      checklist: items.map((t) => ({ t, done: false })),
     }
   );
 
+// Projects are created by the Super Admin (separate web page).
+// "members" does NOT include the team lead, the lead is the "lead" field.
 const seed = {
   user: null,
   ws: null,
@@ -147,176 +136,132 @@ const seed = {
       id: "P-1",
       name: "Billing Platform",
       desc: "Multi-currency billing with tax automation.",
-      lead: "Arun Patel",
-      team: SQ[0],
-      members: ["Arun Patel", "Rahul Varma", "Sneha Rao", "Alex Morgan"],
+      lead: "ABC",
+      team: "Alpha Engineering",
+      members: ["Rahul Varma", "Sneha Rao", "Alex Morgan"],
       due: "2026-12-20",
-      status: "In Progress",
     },
     {
       id: "P-2",
       name: "Mobile App",
       desc: "iOS and Android approvals app.",
-      lead: "Priya Sharma",
-      team: SQ[1],
-      members: ["Priya Sharma", "Arun Patel", "Karan Mehta"],
+      lead: "ABC",
+      team: "Beta Mobile Squad",
+      members: ["Priya Sharma", "Karan Mehta", "Divya Iyer"],
       due: "2026-12-05",
-      status: "In Progress",
     },
     {
       id: "P-3",
       name: "HR Management",
       desc: "Leave, timesheets and payroll audit.",
       lead: "Maya Chen",
-      team: SQ[2],
-      members: ["Maya Chen", "Arun Patel"],
+      team: "Core HR & Ops",
+      members: ["ABC", "Chloe Bennett", "Divya Iyer"],
       due: "2027-01-10",
-      status: "Pending",
     },
     {
       id: "P-4",
       name: "Analytics Dashboard",
       desc: "Executive metrics and forecasts.",
       lead: "Arun Patel",
-      team: SQ[3],
-      members: ["Arun Patel", "Chloe Bennett"],
+      team: "Analytics & Design",
+      members: ["ABC", "Karan Mehta", "Alex Morgan"],
       due: "2027-01-25",
-      status: "In Progress",
     },
   ],
   tasks: [
+    // Assigned by ABC (Team & task management workspace)
     T(
-      "TASK-1042",
+      "TASK-1001",
       "Implement invoice export endpoint",
+      "Build the CSV/PDF invoice export endpoint and update the team.",
       "Billing Platform",
       "Rahul Varma",
-      "Arun Patel",
+      "ABC",
       "High",
-      "2026-11-15",
-      "In Progress",
-      2538,
-    ),
-    T(
-      "TASK-1043",
-      "Configure multi-currency billing",
-      "Billing Platform",
-      "Sneha Rao",
-      "Arun Patel",
-      "High",
-      "2026-11-10",
-      "Review",
-      2320,
-    ),
-    T(
-      "TASK-1044",
-      "Prepare sprint review notes",
-      "Billing Platform",
-      "Arun Patel",
-      "Arun Patel",
-      "Medium",
-      "2026-11-12",
-      "To Do",
-    ),
-    T(
-      "TASK-1045",
-      "Push notification triggers",
-      "Mobile App",
-      "Arun Patel",
-      "Priya Sharma",
-      "High",
-      "2026-11-18",
-      "In Progress",
-      3300,
-    ),
-    T(
-      "TASK-1046",
-      "Onboarding checklist wizard",
-      "HR Management",
-      "Arun Patel",
-      "Maya Chen",
-      "Medium",
-      "2026-11-20",
-      "To Do",
-    ),
-    T(
-      "TASK-1047",
-      "ARR cohort chart",
-      "Analytics Dashboard",
-      "Chloe Bennett",
-      "Arun Patel",
-      "Low",
       "2026-11-25",
-      "To Do",
+      ["Design endpoint contract", "Implement CSV export", "Implement PDF export", "Write unit tests"],
     ),
     T(
-      "TASK-1039",
-      "OAuth2 Google login",
-      "Billing Platform",
-      "Alex Morgan",
-      "Arun Patel",
+      "TASK-1002",
+      "Design push notification triggers",
+      "Define and implement the push notification triggers for approvals.",
+      "Mobile App",
+      "Priya Sharma",
+      "ABC",
+      "Medium",
+      "2026-11-28",
+      ["List trigger events", "Configure FCM / APNs", "Test on TestFlight"],
+    ),
+    // Assigned to ABC (Task management workspace)
+    T(
+      "TASK-1003",
+      "Build onboarding checklist wizard",
+      "Create the step-by-step onboarding checklist wizard for new joiners.",
+      "HR Management",
+      "ABC",
+      "Maya Chen",
       "High",
-      "2026-10-30",
-      "Completed",
-      4500,
+      "2026-11-24",
+      ["Create wizard layout", "Add step validation", "Connect checklist data"],
+    ),
+    T(
+      "TASK-1004",
+      "Create ARR cohort chart",
+      "Add the ARR cohort retention chart to the executive dashboard.",
+      "Analytics Dashboard",
+      "ABC",
+      "Arun Patel",
+      "Medium",
+      "2026-11-27",
+      ["Prepare cohort data", "Build chart component", "Add tooltips and legend"],
     ),
   ],
   msgs: {
     "#alpha-engineering": [{ u: "Sneha Rao", x: "Currency cache is live on staging.", t: "09:40" }],
-    "#beta-mobile": [{ u: "Priya Sharma", x: "Test builds are on TestFlight.", t: "10:05" }],
-    "Rahul Varma": [{ u: "Rahul Varma", x: "Export endpoint almost done.", t: "09:45" }],
-    "Priya Sharma": [],
+    "#beta-mobile-squad": [{ u: "Priya Sharma", x: "Test builds are on TestFlight.", t: "10:05" }],
+    "#core-hr-ops": [{ u: "Maya Chen", x: "Please check the onboarding task today.", t: "09:15" }],
+    "#analytics-design": [{ u: "Arun Patel", x: "Cohort data is ready for the chart.", t: "09:55" }],
+    "Rahul Varma": [{ u: "Rahul Varma", x: "Export endpoint work is ready to start.", t: "09:45" }],
+    "Maya Chen": [{ u: "Maya Chen", x: "Hi, your task is assigned.", t: "09:10" }],
   },
   notifs: [
     {
       id: 1,
-      txt: "Task TASK-1044 assigned to you",
-      cat: "Task Assigned",
-      task: "TASK-1044",
-      un: true,
-      t: "10m ago",
-    },
-    {
-      id: 2,
-      txt: "Billing Platform reached 60% progress",
+      ws: "lead",
+      txt: "Project Billing Platform assigned to you by Super Admin",
       cat: "Project Updates",
       un: true,
       t: "1h ago",
     },
     {
-      id: 3,
-      txt: "Sneha Rao submitted TASK-1043 for review",
-      cat: "Task Review",
-      task: "TASK-1043",
+      id: 2,
+      ws: "lead",
+      txt: "Project Mobile App assigned to you by Super Admin",
+      cat: "Project Updates",
       un: false,
       t: "Yesterday",
     },
+    {
+      id: 3,
+      ws: "employee",
+      txt: "Task TASK-1003 assigned to you by Maya Chen",
+      cat: "Task Assigned",
+      task: "TASK-1003",
+      un: true,
+      t: "10m ago",
+    },
+    {
+      id: 4,
+      ws: "employee",
+      txt: "Task TASK-1004 assigned to you by Arun Patel",
+      cat: "Task Assigned",
+      task: "TASK-1004",
+      un: true,
+      t: "30m ago",
+    },
   ],
 };
-
-const load = () => {
-  try {
-    return JSON.parse(localStorage.getItem(K)) || seed;
-  } catch (e) {
-    return seed;
-  }
-};
-
-const USERS_BASE = PEOPLE.map((n) => ({
-  name: n,
-  email: n.toLowerCase().replace(/ /g, ".") + "@workflow.com",
-  username: n.split(" ")[0].toLowerCase(),
-}));
-
-function getUsers() {
-  let accs = [];
-  try {
-    accs = JSON.parse(localStorage.getItem("wf_acc") || "[]");
-  } catch (e) {}
-  const extra = accs
-    .filter((x) => !USERS_BASE.some((b) => b.email === x.email))
-    .map((x) => ({ name: x.name, email: x.email, username: x.user }));
-  return [...USERS_BASE, ...extra];
-}
 
 function Modal({ title, onClose, children }) {
   return (
@@ -331,25 +276,6 @@ function Modal({ title, onClose, children }) {
     </div>
   );
 }
-
-const ICONS = {
-  "Total Projects": "FolderKanban",
-  "Total Teams": "UsersRound",
-  "Total Employees": "User",
-  "Active Tasks": "Zap",
-  "Completed": "Check",
-  "Pending": "Clock",
-  "Projects": "FolderKanban",
-  "Team Members": "UsersRound",
-  "Total Tasks": "ListTodo",
-  "In Progress": "Zap",
-  "Under Review": "Eye",
-  "Logged Hours": "Clock",
-  "Tasks": "ListTodo",
-  "Upcoming": "Clock",
-  "In Progress Projects": "Zap",
-  "Completed Projects": "Check",
-};
 
 function LiveTime({ t, timer }) {
   const [, x] = useState(0);
@@ -418,7 +344,7 @@ function Auth({ c }) {
     const id = f.id.trim().toLowerCase();
     if (id === "abc@gmail.com" && f.pw === "123456") {
       return login({
-        name: "Arun Patel",
+        name: "ABC",
         email: "abc@gmail.com",
         ws: ["lead", "employee"],
       });
@@ -682,11 +608,8 @@ function Auth({ c }) {
   );
 }
 
-function Chat({ c, kind }) {
-  const chans = kind === "chat"
-    ? ["#alpha-engineering", "#beta-mobile", "#billing-platform"]
-    : PEOPLE.filter((p) => p !== c.u.name);
-  const [a, setA] = useState(chans[0]),
+function Chat({ c, kind, chans }) {
+  const [a, setA] = useState(chans[0] || ""),
     [x, setX] = useState(""),
     [file, setFile] = useState(""),
     [rec, setRec] = useState(false),
@@ -727,6 +650,7 @@ function Chat({ c, kind }) {
             {kind === "dm" && <small className="mu"> · online</small>}
           </button>
         ))}
+        {!chans.length && <span className="mu">Nothing here yet.</span>}
       </div>
       <div className="cv">
         <div className="row sp" style={{ padding: 10, borderBottom: "1px solid var(--bd)" }}>
@@ -817,9 +741,10 @@ function ToastHost() {
 }
 
 function App() {
-  const [s, setS] = useState(load),
-    [userRoute, setUserRoute] = useState({ p: "overview" }),
-    [userHist, setUserHist] = useState([]),
+  // State lives in memory only (no localStorage), so a page reload starts from scratch.
+  const [s, setS] = useState(seed);
+  const [route, setRoute] = useState({ p: "overview" }),
+    [hist, setHist] = useState([]),
     [dd, setDd] = useState(false),
     [modal, setModal] = useState(null),
     [flt, setFlt] = useState("All"),
@@ -827,17 +752,8 @@ function App() {
     [tp, setTp] = useState("All"),
     [mq, setMq] = useState(""),
     [mf, setMf] = useState("All");
-  const route = userRoute;
-  const setRoute = setUserRoute;
-  const hist = userHist;
-  const setHist = setUserHist;
   const setToast = showToast;
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(K, JSON.stringify(s));
-    } catch (e) {}
-  }, [s]);
   const [side, setSide] = useState(() => {
     try {
       return localStorage.getItem("wf_side") === "1";
@@ -880,18 +796,6 @@ function App() {
       fn(d);
       return d;
     });
-  useEffect(() => {
-    if (s.user && (s.ws === "manager" || !["lead", "employee"].includes(s.ws))) {
-      up((d) => {
-        d.ws = "lead";
-        d.user.ws = [...new Set([...(d.user.ws || []), "lead"])].filter(
-          (w) => w === "lead" || w === "employee",
-        );
-      });
-    }
-  }, [s.user, s.ws]);
-  const note = (d, txt, cat, task) =>
-    d.notifs.unshift({ id: Date.now() + Math.random(), txt, cat, task, un: true, t: "just now" });
   const log = (d, id, txt) => d.tasks.find((t) => t.id === id).log.push({ t: now(), txt });
   const go = (r) => {
     setHist((h) => [...h, route]);
@@ -911,14 +815,12 @@ function App() {
     return <Auth c={c} />;
   }
   const u = s.user,
-    ws = s.ws === "manager" ? "lead" : s.ws,
-    M = false,
+    ws = s.ws,
     L = ws === "lead",
     E = ws === "employee";
-  const projects = s.projects.filter((p) =>
-    M || (L ? p.lead === u.name : p.members.includes(u.name)));
+  const projects = s.projects.filter((p) => (L ? p.lead === u.name : p.members.includes(u.name)));
   const pn = projects.map((p) => p.name);
-  const tasks = s.tasks.filter((t) => M || (L ? pn.includes(t.project) : t.assignee === u.name));
+  const tasks = s.tasks.filter((t) => (L ? pn.includes(t.project) : t.assignee === u.name));
   const secs = (t) =>
     t.secs + (s.timer && s.timer.id === t.id ? (Date.now() - s.timer.start) / 1000 : 0);
   const prog = (p) => {
@@ -939,9 +841,6 @@ function App() {
   };
 
   const switchWs = (w) => {
-    if (w !== "lead" && w !== "employee") {
-      return;
-    }
     up((d) => {
       d.ws = w;
     });
@@ -951,28 +850,41 @@ function App() {
     setToast("Switched to " + WS[w]);
   };
 
+  // Stop the running timer: task becomes "Stopped" and waits for the work description
   const stopTimer = (d) => {
     if (d.timer) {
       const t = d.tasks.find((x) => x.id === d.timer.id);
-      t.secs += Math.floor((Date.now() - d.timer.start) / 1000);
-      log(d, t.id, "Timer stopped, " + fmt((Date.now() - d.timer.start) / 1000) + " logged");
+      const el = Math.floor((Date.now() - d.timer.start) / 1000);
+      t.secs += el;
+      t.status = "Stopped";
+      log(d, t.id, "Timer stopped, " + fmt(el) + " logged");
       d.stopped = t.id;
       d.timer = null;
     }
   };
+
+  const startTimer = (t) =>
+    up((d) => {
+      stopTimer(d);
+      const k = d.tasks.find((x) => x.id === t.id);
+      log(d, t.id, k.secs > 0 ? "Timer resumed" : "Timer started");
+      k.status = "In Progress";
+      d.timer = { id: t.id, start: Date.now() };
+      d.stopped = null;
+    });
 
   const nav = [
     ["overview", "LayoutDashboard", "Overview"],
     ["project", "FolderKanban", "Project"],
     ["team", "UsersRound", "Team"],
     ["task", "ListTodo", "Task"],
-    ...(M ? [["board", "Columns3", "Team Board"]] : []),
     ["chat", "MessagesSquare", "Team Chat"],
     ["dm", "MessageCircle", "Direct Message"],
     ["notif", "Bell", "Notification"],
   ];
 
-  const unread = s.notifs.filter((n) => n.un).length;
+  const myNotifs = s.notifs.filter((n) => n.ws === ws);
+  const unread = myNotifs.filter((n) => n.un).length;
   const BackBtn = () =>
     route.p === "overview"
       ? null
@@ -985,14 +897,14 @@ function App() {
       );
   const mems = (pj) => {
     const p = s.projects.find((x) => x.name === pj);
-    return p ? p.members.filter((m) => M || m !== u.name || true) : [];
+    return p ? p.members : [];
   };
 
   const Assign = () => {
     const [f, setF] = useState({
       title: "",
       desc: "",
-      project: projects[0]?.name || "",
+      project: modal?.project || projects[0]?.name || "",
       assignee: "",
       priority: "Medium",
       due: "2026-11-30",
@@ -1011,7 +923,7 @@ function App() {
     return (
       <Modal title="Assign Task" onClose={() => setModal(null)}>
         {!projects.length
-          ? <p className="mu">There are no projects yet. Create a project first.</p>
+          ? <p className="mu">There are no projects assigned to you yet.</p>
           : (
             <form
               className="grid"
@@ -1021,14 +933,11 @@ function App() {
                   return;
                 }
                 const id = "TASK-" +
-                  (Math.max(1100, ...s.tasks.map((x) => parseInt(x.id.slice(5)) || 0)) + 1);
+                  (Math.max(1004, ...s.tasks.map((x) => parseInt(x.id.slice(5)) || 0)) + 1);
                 up((d) => {
-                  d.tasks.unshift({
-                    ...T(id, f.title, f.project, as, u.name, f.priority, f.due, "To Do"),
-                    desc: f.desc || "Assigned task.",
-                    checklist: f.items.map((t) => ({ t, done: false })),
-                  });
-                  note(d, `${u.name} assigned you ${id}`, "Task Assigned", id);
+                  d.tasks.unshift(
+                    T(id, f.title, f.desc || "Assigned task.", f.project, as, u.name, f.priority, f.due, f.items),
+                  );
                 });
                 setModal(null);
                 setToast("Task assigned to " + as);
@@ -1129,156 +1038,7 @@ function App() {
     );
   };
 
-  const NewProject = () => {
-    const [f, setF] = useState({
-      name: "",
-      desc: "",
-      due: "2026-12-31",
-      team: "",
-      members: [],
-      lead: "",
-    });
-    const [draft, setDraft] = useState([]);
-    const [q, setQ] = useState("");
-    const [err, setErr] = useState("");
-    const shown = getUsers().filter((x) =>
-      (x.name + " " + x.email + " " + x.username).toLowerCase().includes(q.toLowerCase()));
-    const dirty = draft.length !== f.members.length || draft.some((n) => !f.members.includes(n));
-
-    const saveMembers = () => {
-      if (!draft.length) {
-        return setErr("Select at least one team member.");
-      }
-      setErr("");
-      setF({ ...f, members: draft, lead: draft.includes(f.lead) ? f.lead : "" });
-    };
-
-    return (
-      <Modal title="Create Project" onClose={() => setModal(null)}>
-        <form
-          className="grid"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (s.projects.some((x) => x.name.toLowerCase() === f.name.trim().toLowerCase())) {
-              return setErr("A project with this name already exists.");
-            }
-            if (!f.members.length || dirty) {
-              return setErr("Select the team members and click Save.");
-            }
-            if (!f.lead) {
-              return setErr("Choose a team lead.");
-            }
-            up((d) => {
-              const n = Math.max(0, ...d.projects.map((x) => parseInt(x.id.slice(2)) || 0)) + 1;
-              d.projects.unshift({
-                id: "P-" + n,
-                name: f.name.trim(),
-                desc: f.desc,
-                lead: f.lead,
-                team: f.team.trim(),
-                members: f.members,
-                due: f.due,
-                status: "Pending",
-              });
-              note(d, `Project ${f.name.trim()} created`, "Project Updates");
-            });
-            setModal(null);
-            setToast("Project created");
-          }}
-        >
-          <label>
-            Project Name *
-            <input
-              required
-              placeholder="e.g. NextGen Client App"
-              value={f.name}
-              onChange={(e) => setF({ ...f, name: e.target.value })}
-            />
-          </label>
-          <label>
-            Description
-            <textarea
-              rows={2}
-              placeholder="Scope, objectives, and deliverables..."
-              value={f.desc}
-              onChange={(e) => setF({ ...f, desc: e.target.value })}
-            />
-          </label>
-          <div className="row">
-            <label style={{ flex: 1 }}>
-              Due Date
-              <input
-                type="date"
-                value={f.due}
-                onChange={(e) => setF({ ...f, due: e.target.value })}
-              />
-            </label>
-            <label style={{ flex: 1 }}>
-              Team Name *
-              <input
-                required
-                placeholder="e.g. Alpha Engineering"
-                value={f.team}
-                onChange={(e) => setF({ ...f, team: e.target.value })}
-              />
-            </label>
-          </div>
-          <div className="mp">
-            <span className="cap">Select Team Members</span>
-            <div className="search" style={{ maxWidth: "none" }}>
-              <span><Icon n="Search" s={18} /></span>
-              <input
-                placeholder="Search email or user name"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-              />
-            </div>
-            <div className="mlist">
-              {shown.map((x) => (
-                <label key={x.email} className="mrow">
-                  <span className="mn">
-                    <span className="avatar">{ini(x.name)}</span>
-                    <span><b>{x.name}</b><small className="mu">{x.email}</small></span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={draft.includes(x.name)}
-                    onChange={() =>
-                      setDraft(
-                        draft.includes(x.name)
-                          ? draft.filter((n) => n !== x.name)
-                          : [...draft, x.name],
-                      )}
-                  />
-                </label>
-              ))}
-              {!shown.length && <span className="mu">No matching users.</span>}
-            </div>
-            <div className="mfoot">
-              <span>{draft.length} selected{!dirty && f.members.length > 0 && " · saved"}</span>
-              <button type="button" className="btn sm" onClick={saveMembers}>Save</button>
-            </div>
-          </div>
-          <label>
-            Team Lead *
-            <select
-              value={f.lead}
-              disabled={!f.members.length}
-              onChange={(e) => setF({ ...f, lead: e.target.value })}
-            >
-              <option value="">
-                {f.members.length ? "Select team lead" : "Save team members first"}
-              </option>
-              {f.members.map((m) => <option key={m}>{m}</option>)}
-            </select>
-          </label>
-          {err && <div className="err">{err}</div>}
-          <button className="btn">Create Project</button>
-        </form>
-      </Modal>
-    );
-  };
-
+  // Employee: reassign a task that has not been started yet
   const Reassign = ({ t }) => {
     const [q, setQ] = useState("");
     const ms = mems(t.project).filter((m) =>
@@ -1304,17 +1064,15 @@ function App() {
                 className="btn sm"
                 onClick={() => {
                   up((d) => {
-                    if (d.timer && d.timer.id === t.id) {
-                      stopTimer(d);
-                    }
                     const k = d.tasks.find((x) => x.id === t.id);
                     k.assignee = m;
-                    log(d, t.id, `Reassigned from ${t.assignee} to ${m} by ${u.name}`);
-                    note(d, `${t.id} reassigned to ${m}`, "Task Assigned", t.id);
+                    k.status = "To Do";
+                    log(d, t.id, `Reassigned from ${t.assignee} to ${m}`);
                   });
 
                   setModal(null);
                   setToast("Reassigned to " + m);
+                  back();
                 }}
               >
                 Reassign
@@ -1330,7 +1088,7 @@ function App() {
   const TeamModal = ({ x }) => (
     <Modal title={x.team + " · " + x.name} onClose={() => setModal(null)}>
       <div className="mu">Lead: {x.lead}</div>
-      {x.members.map((m, i) => {
+      {[x.lead, ...x.members].map((m, i) => {
         const ct = s.tasks.find((t) =>
           t.assignee === m && t.project === x.name && t.status === "In Progress");
 
@@ -1338,20 +1096,27 @@ function App() {
           <div key={m} className="prow">
             <span className="row">
               <span className="avatar">{ini(m)}</span>
-              <span>{m}<br /><small className="mu">{ct ? ct.title : "No active task"}</small></span>
+              <span>
+                {m}
+                <br />
+                <small className="mu">{ct ? ct.title : i === 0 ? "Team Lead" : "No active task"}</small>
+              </span>
             </span>
             <small className="mu">{["Online", "Away", "Offline"][(i + m.length) % 3]}</small>
           </div>
         );
       })}
-      {(M || L) && (
-          <button className="btn" onClick={() => setModal({ k: "assign" })}>Assign Task</button>
+      {L && (
+          <button className="btn" onClick={() => setModal({ k: "assign", project: x.name })}>
+            Assign Task
+          </button>
         )}
     </Modal>
   );
 
+  // Team lead: report to Super Admin
   const Report = ({ t }) => {
-    const [f, setF] = useState({ cat: "Task Progress", desc: "", prog: "", block: "", act: "" });
+    const [f, setF] = useState({ cat: "Task Progress", desc: "", prog: "", block: "", act: "", att: "" });
 
     return (
       <Modal title={"Report to Super Admin · " + t.id} onClose={() => setModal(null)}>
@@ -1364,7 +1129,6 @@ function App() {
               const k = d.tasks.find((x) => x.id === t.id);
               k.reports.push({ ...f, at: now(), by: u.name, status: k.status });
               log(d, t.id, "Report to Super Admin submitted (" + f.cat + ")");
-              note(d, `${u.name} reported on ${t.id} (${f.cat})`, "Team Lead Report", t.id);
             });
 
             setModal(null);
@@ -1410,7 +1174,7 @@ function App() {
           </label>
           <label>
             Optional Attachment
-            <input type="file" onChange={(e) => setF({ ...f, att: e.target.files[0]?.name })} />
+            <input type="file" onChange={(e) => setF({ ...f, att: e.target.files[0]?.name || "" })} />
           </label>
           <button className="btn">Submit Report</button>
         </form>
@@ -1421,64 +1185,28 @@ function App() {
   const TaskDetail = () => {
     const t = s.tasks.find((x) => x.id === route.id);
     const [chg, setChg] = useState(""),
-      [cf, setCf] = useState(null);
+      [dn, setDn] = useState(null);
     if (!t) {
       return <div className="card">Task not found.</div>;
     }
-    const mine = E && t.assignee === u.name || L && t.assignee === u.name && false;
     const running = s.timer?.id === t.id;
-    const canWork = t.assignee === u.name &&
-      !M &&
-      t.status !== "Completed" &&
-      t.status !== "Review";
+    const done = t.status === "Completed";
+    const items = t.checklist || [];
+    const canTick = (t.assignee === u.name || L) && !done;
 
-    return (
-      <div className="grid">
-        <div className="card">
-          <div className="row sp">
-            <div>
-              <span className="mu">{t.id} · {t.project}</span>
-              <h2 style={{ margin: "4px 0" }}>{t.title}</h2>
-            </div>
-            <span className="row"><Pill v={t.priority} /><Pill v={t.status} /></span>
-          </div>
-          <p>{t.desc}</p>
-          <div className="row mu">
-            Assigned by
-            {" "}
-            <b>{t.by}</b>
-            {" "}
-            · Assignee
-            {" "}
-            <b>{t.assignee}</b>
-            {" "}
-            · Due
-            {" "}
-            <b>{t.due}</b>
-          </div>
-          {canRe(t) && (
-              <button
-                className="btn sec sm"
-                style={{ marginTop: 10 }}
-                onClick={() => setModal({ k: "reassign", t })}
-              >
-                Reassign Task
-              </button>
-            )}
+    const checklistUI = (
+      <>
+        <div className="row sp">
+          <b>Checklist</b>
+          <span className="mu">{items.filter((x) => x.done).length}/{items.length}</span>
         </div>
-        <div className="card">
-          <div className="row sp">
-            <b>Checklist</b>
-            <span className="mu">
-              {(t.checklist || []).filter((x) => x.done).length}/{(t.checklist || []).length}
-            </span>
-          </div>
-          {(t.checklist || []).map((it, i) => (
+        <div className="td-check">
+          {items.map((it, i) => (
             <label key={i} className="ckrow">
               <input
                 type="checkbox"
                 checked={it.done}
-                disabled={!(t.assignee === u.name || L || M)}
+                disabled={!canTick}
                 onChange={() =>
                   up((d) => {
                     const k = d.tasks.find((x) => x.id === t.id);
@@ -1488,199 +1216,220 @@ function App() {
               <span className={it.done ? "done" : ""}>{it.t}</span>
             </label>
           ))}
-          {!(t.checklist || []).length && <span className="mu">No checklist items.</span>}
+          {!items.length && <span className="mu td-empty">No checklist items.</span>}
         </div>
-        <div className="grid g2">
-          <div className="card">
-            <b>Time Tracking</b>
-            <div className="timer"><LiveTime t={t} timer={s.timer} /></div>
-            {running && <div className="live">Timer running</div>}
-            {canWork && (
-                <div className="row" style={{ marginTop: 8 }}>
-                  {!running
-                    ? (
-                      <button
-                        className="btn"
-                        onClick={() =>
-                          up((d) => {
-                            stopTimer(d);
-                            const k = d.tasks.find((x) => x.id === t.id);
-                            k.status = "In Progress";
-                            d.timer = { id: t.id, start: Date.now() };
-                            d.stopped = null;
-                            log(d, t.id, "Timer started");
-                          })}
-                      >
-                        <Icon n="Play" s={16} />
-                        {" "}
-                        Start Timer
-                      </button>
-                    )
-                    : (
-                      <button className="btn red" onClick={() => up(stopTimer)}>
-                        <Icon n="Square" s={16} />
-                        {" "}
-                        Stop Timer
-                      </button>
-                    )}
-                  <button className="btn sec" onClick={() => setCf({ n: "", w: "" })}>
-                    Mark Complete
-                  </button>
-                </div>
-              )}
-            {s.stopped === t.id && (
-                <div className="grid" style={{ marginTop: 10 }}>
-                  <textarea
-                    rows={3}
-                    placeholder="Describe the work completed during this session..."
-                    value={chg}
-                    onChange={(e) => setChg(e.target.value)}
-                  />
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      if (!chg.trim()) {
-                        return;
-                      }
-                      up((d) => {
-                        log(d, t.id, "Work update: " + chg);
-                        d.stopped = null;
-                      });
-                      setChg("");
-                      setToast("Changes saved");
-                    }}
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              )}
+      </>
+    );
+
+    // ---------- Team & task management (lead) ----------
+    if (L) {
+      const savedChanges = [...t.log].reverse().filter((l) =>
+        l.txt.startsWith("Work update: ") || l.txt.startsWith("Completed: "));
+
+      return (
+        <div className="grid td-page">
+          {/* LEFT: details */}
+          <div className="card td-col td-main">
+            <div className="row sp">
+              <span className="mu">{t.project} · {t.id}</span>
+              <span className="row"><Pill v={t.priority} /><Pill v={t.status} /></span>
+            </div>
+            <h2>{t.title}</h2>
+            <p>{t.desc}</p>
+
+            <div className="td-meta">
+              <span>Assigned to : <b>{t.assignee}</b></span>
+              <span>Due Date : <b>{t.due}</b></span>
+            </div>
+
+            {checklistUI}
           </div>
-          <div className="card">
-            <b>Review &amp; Reports</b>
-            {t.status === "Review" &&
-              (L || M) && (
-                <div className="row" style={{ margin: "8px 0" }}>
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      up((d) => {
-                        d.tasks.find((x) => x.id === t.id).status = "Completed";
-                        log(d, t.id, "Approved by " + u.name);
-                        note(d, `${t.id} approved`, "Task Review", t.id);
-                      });
-                      setToast("Approved");
-                    }}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    className="btn sec"
-                    onClick={() => {
-                      up((d) => {
-                        d.tasks.find((x) => x.id === t.id).status = "In Progress";
-                        log(d, t.id, "Changes requested by " + u.name);
-                        note(d, `Changes requested on ${t.id}`, "Task Review", t.id);
-                      });
-                      setToast("Changes requested");
-                    }}
-                  >
-                    Request Changes
-                  </button>
-                </div>
-              )}
-            {L && (
-                <div style={{ margin: "8px 0" }}>
-                  <button className="btn" onClick={() => setModal({ k: "report", t })}>
-                    <Icon n="Send" s={16} />
-                    {" "}
-                    Report to Super Admin
-                  </button>
-                </div>
-              )}
-            {(L || M) &&
-              t.reports.map((r, i) => (
+
+          {/* RIGHT: time tracking + activity history in ONE container */}
+          <div className="card td-col td-right">
+            <div className="td-time">
+              <b>Time Tracking</b>
+              <div className="timer"><LiveTime t={t} timer={s.timer} /></div>
+              {running && <div className="live">Timer running</div>}
+            </div>
+
+            <div className="td-hist">
+              <b>Activity History</b>
+              <div className="td-fill">
+                {[...t.log].reverse().map((l, i) => (
+                  <div key={i} className="log">
+                    <small className="mu">{l.t}</small>
+                    <br />
+                    {l.txt}
+                  </div>
+                ))}
+                {!t.log.length && <span className="mu td-empty">No activity history yet.</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* BOTTOM: saved changes */}
+          <div className="card td-col td-saved">
+            <b>Saved Changes</b>
+            <div className="td-fill">
+              {savedChanges.map((l, i) => (
                 <div key={i} className="log">
-                  <b>{r.cat}</b>
-                  {" "}
-                  ·
-                  {" "}
-                  {r.at}
-                  <br />
-                  {r.desc}
-                  {r.block && <><br />Blockers: {r.block}</>}
-                  {r.act && <><br />Action: {r.act}</>}
+                  <b>{l.t}</b>
+                  {l.txt.replace("Work update: ", "")}
                 </div>
               ))}
-            {E && !t.reports.length && <span className="mu">No reports.</span>}
+              {!savedChanges.length && <span className="mu td-empty">No saved changes yet.</span>}
+            </div>
           </div>
         </div>
-        <div className="card">
-          <b>Activity History</b>
-          {[...t.log].reverse().map((l, i) => (
-            <div key={i} className="log"><small className="mu">{l.t}</small><br />{l.txt}</div>
-          ))}
+      );
+    }
+
+    // ---------- Task management (employee) ----------
+    // To Do   -> [Start] [Reassign]
+    // Running -> [Stop & Save] [Mark Complete]
+    // Stopped -> [Resume] [Mark Complete]   (loops until Mark Complete)
+    const needSave = s.stopped === t.id && t.status === "Stopped";
+
+    let ctrl;
+    if (done) {
+      ctrl = <span className="mu">Task completed.</span>;
+    } else if (needSave) {
+      ctrl = (
+        <div className="td-form">
+          <label>
+            Work description
+            <textarea
+              rows={4}
+              autoFocus
+              placeholder="Describe the work completed during this session..."
+              value={chg}
+              onChange={(e) => setChg(e.target.value)}
+            />
+          </label>
+          <button
+            className="btn"
+            disabled={!chg.trim()}
+            onClick={() => {
+              if (!chg.trim()) {
+                return;
+              }
+              up((d) => {
+                log(d, t.id, "Work update: " + chg.trim());
+                d.stopped = null;
+              });
+              setChg("");
+              setToast("Changes saved");
+            }}
+          >
+            Save Changes
+          </button>
         </div>
-        {cf && (
-            <Modal title="Complete task" onClose={() => setCf(null)}>
-              <form
-                className="grid"
-                onSubmit={(e) => {
-                  e.preventDefault();
+      );
+    } else if (dn !== null) {
+      ctrl = (
+        <div className="td-form">
+          <label>
+            Completion description
+            <textarea
+              rows={4}
+              autoFocus
+              placeholder="Describe the completed work and final outcome..."
+              value={dn}
+              onChange={(e) => setDn(e.target.value)}
+            />
+          </label>
+          <button
+            className="btn"
+            disabled={!dn.trim()}
+            onClick={() => {
+              if (!dn.trim()) {
+                return;
+              }
+              up((d) => {
+                if (d.timer && d.timer.id === t.id) {
+                  stopTimer(d);
+                }
+                const k = d.tasks.find((x) => x.id === t.id);
+                k.status = "Completed";
+                k.completedAt = now();
+                log(d, t.id, "Completed: " + dn.trim());
+                d.stopped = null;
+              });
+              setDn(null);
+              setToast("Task completed");
+            }}
+          >
+            Save &amp; Complete
+          </button>
+          <button className="btn sec" onClick={() => setDn(null)}>Cancel</button>
+        </div>
+      );
+    } else if (t.status === "To Do") {
+      ctrl = (
+        <div className="td-ctrlbtns">
+          <button className="btn" onClick={() => startTimer(t)}>
+            <Icon n="Play" s={16} />
+            {" "}
+            Start
+          </button>
+          <button className="btn sec" onClick={() => setModal({ k: "reassign", t })}>
+            Reassign
+          </button>
+        </div>
+      );
+    } else if (running) {
+      ctrl = (
+        <div className="td-ctrlbtns">
+          <button className="btn red" onClick={() => up(stopTimer)}>
+            <Icon n="Square" s={16} />
+            {" "}
+            Stop &amp; Save
+          </button>
+          <button className="btn sec" onClick={() => setDn("")}>Mark Complete</button>
+        </div>
+      );
+    } else {
+      ctrl = (
+        <div className="td-ctrlbtns">
+          <button className="btn" onClick={() => startTimer(t)}>
+            <Icon n="Play" s={16} />
+            {" "}
+            Resume
+          </button>
+          <button className="btn sec" onClick={() => setDn("")}>Mark Complete</button>
+        </div>
+      );
+    }
 
-                  up((d) => {
-                    stopTimer(d);
-                    const k = d.tasks.find((x) => x.id === t.id);
-                    k.status = "Review";
-                    k.completedAt = now();
-                    log(
-                      d,
-                      t.id,
-                      `Submitted for review. Notes: ${cf.n} | Summary: ${cf.w}` +
-                        (cf.f ? ` | File: ${cf.f}` : ""),
-                    );
-                    note(d, `${u.name} submitted ${t.id} for review`, "Task Review", t.id);
-                  });
+    return (
+      <div className="grid td-page emp">
+        <div className="card td-col td-main">
+          <span className="mu">{t.project} · {t.id}</span>
+          <h2>{t.title}</h2>
+          <p>{t.desc}</p>
 
-                  setCf(null);
-                  setToast("Submitted for review");
-                }}
-              >
-                <label>
-                  Completion Notes
-                  <textarea
-                    required
-                    rows={3}
-                    placeholder="Describe the completed work, important changes and final outcome..."
-                    value={cf.n}
-                    onChange={(e) => setCf({ ...cf, n: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Work Summary
-                  <input
-                    required
-                    value={cf.w}
-                    onChange={(e) => setCf({ ...cf, w: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Supporting Attachment (optional)
-                  <input
-                    type="file"
-                    onChange={(e) => setCf({ ...cf, f: e.target.files[0]?.name })}
-                  />
-                </label>
-                <button className="btn">Submit for Review</button>
-              </form>
-            </Modal>
-          )}
+          <div className="td-meta3">
+            <div><small className="mu">Assigned by</small><b>{t.by}</b></div>
+            <div><small className="mu">Due Date</small><b>{t.due}</b></div>
+            <div><small className="mu">Priority</small><b>{t.priority}</b></div>
+          </div>
+
+          {checklistUI}
+        </div>
+
+        <div className="card td-col td-ctrl">
+          <b>Task Controls</b>
+          <div className="td-ctrlbody">
+            <Pill v={t.status} />
+            <div className="timer"><LiveTime t={t} timer={s.timer} /></div>
+            {running && <div className="live">Timer running</div>}
+            {ctrl}
+          </div>
+        </div>
       </div>
     );
   };
-
-  const canRe = (t) =>
-    t.status !== "Completed" &&
-      (M || (L && pn.includes(t.project)) || (E && t.assignee === u.name && t.status !== "Review"));
 
   const TaskTable = ({ list, size }) => (
     <div className={"card tbl " + (size || "")}>
@@ -1718,151 +1467,248 @@ function App() {
 
   let page;
   const p = route.p;
+  const reportTask = p === "taskd" && L ? s.tasks.find((x) => x.id === route.id) : null;
 
-  if (p === "overview") {
-    const d = tasks.filter((t) => t.status === "Completed").length,
-      ip = tasks.filter((t) => t.status === "In Progress").length,
-      rv = tasks.filter((t) => t.status === "Review").length,
-      pe = tasks.filter((t) => t.status === "To Do").length;
-
-    const today = new Date().toISOString().slice(0, 10);
-    const upcoming = tasks.filter((t) => t.status !== "Completed" && t.due >= today).length;
-
-    const stats = M
-      ? [
-        ["Total Projects", s.projects.length],
-        ["Total Teams", new Set(s.projects.map((x) => x.team)).size],
-        ["Total Tasks", s.tasks.length],
-        ["In Progress Projects", s.projects.filter((x) => pstat(x) === "In Progress").length],
-        ["Completed Projects", s.projects.filter((x) => pstat(x) === "Completed").length],
-      ]
-      : L
-        ? [
-          ["Projects", projects.length],
-          ["Team Members", new Set(projects.flatMap((x) => x.members)).size],
-          ["Total Tasks", tasks.length],
-          ["Completed", d],
-          ["In Progress", ip],
-          ["Under Review", rv],
-        ]
-        : [
-          ["Projects", projects.length],
-          ["Tasks", tasks.length],
-          ["In Progress", ip],
-          ["Upcoming", upcoming],
-          ["Logged Hours", fmt(tasks.reduce((a, t) => a + secs(t), 0)).slice(0, -3)],
-        ];
+  // ---------- Overview: Team & task management (lead) ----------
+  if (p === "overview" && L) {
+    const cnt = (st) => tasks.filter((t) => t.status === st).length;
+    const reported = tasks.filter((t) => t.reports.length);
+    const stats = [
+      ["Projects", projects.length, "FolderKanban"],
+      ["Team Members", new Set(projects.flatMap((x) => x.members)).size, "UsersRound"],
+      ["Total Task", tasks.length, "ListTodo"],
+      ["Completed", cnt("Completed"), "Check"],
+      ["In Progress", cnt("In Progress"), "Zap"],
+      ["Stopped", cnt("Stopped"), "Clock"],
+    ];
 
     page = (
       <div className="grid">
-        <h2 className="t" style={{ margin: 0 }}>Overview</h2>
-        <div className="grid g4">
-          {stats.map(([a, b]) => (
+        <h2 className="t">Overview</h2>
+
+        <div className="lo-stats">
+          {stats.map(([a, b, i]) => (
             <div key={a} className="card stat">
-              <i className="ic"><Icon n={ICONS[a] || "Zap"} s={22} /></i>
+              <i className="ic"><Icon n={i} s={20} /></i>
               <div><span>{a}</span><b>{b}</b></div>
             </div>
           ))}
         </div>
-        <div className="card">
-          <b>Quick Actions</b>
-          <div className="qgrid">
-            {(
-              M
-                ? [
-                  ["Plus", "Create Project", "Start a new project", () => setModal({ k: "proj" })],
-                  [
-                    "UserPlus",
-                    "Assign Task",
-                    "Delegate work to a member",
-                    () => setModal({ k: "assign" }),
-                  ],
-                  ["Columns3", "View Team Board", "Kanban of all tasks", () => go({ p: "board" })],
-                ]
-                : L
-                  ? [
-                    [
-                      "FolderKanban",
-                      "View Project",
-                      "Open your projects",
-                      () => go({ p: "project" }),
-                    ],
-                    [
-                      "UserPlus",
-                      "Assign Task",
-                      "Delegate to your team",
-                      () => setModal({ k: "assign" }),
-                    ],
-                    [
-                      "Columns3",
-                      "View Team Board",
-                      "Kanban of team tasks",
-                      () => go({ p: "board" }),
-                    ],
-                  ]
-                  : [
-                    [
-                      "ClipboardCheck",
-                      "View Tasks",
-                      "Your assigned tasks",
-                      () => go({ p: "task" }),
-                    ],
-                    ["Columns3", "View Team Board", "See team workflow", () => go({ p: "board" })],
-                  ]
-            ).map(([i, a, b, f]) => (
-              <button key={a} className="qbtn" onClick={f}>
-                <i><Icon n={i} s={20} /></i>
-                <span><b>{a}</b><small>{b}</small></span>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid g2">
+
+        <div className="lo-row">
           <div className="card">
             <b>Project Progress</b>
-            {projects.map((x) => (
-              <div
-                key={x.id}
-                style={{ margin: "10px 0", cursor: "pointer" }}
-                onClick={() => go({ p: "projd", id: x.id })}
-              >
-                <div className="row sp">
-                  <span>{x.name}</span>
-                  <span className="mu">{prog(x)}%</span>
-                </div>
-                <Bar v={prog(x)} />
-              </div>
-            ))}
-          </div>
-          <div className="card">
-            <b>{E ? "My Current Tasks" : "Recent Activity"}</b>
-            {tasks.slice(0, 6).map((t) => (
-              <div
-                key={t.id}
-                className="row sp"
-                style={{ padding: "6px 0", borderTop: "1px solid var(--bd)", cursor: "pointer" }}
-                onClick={() => go({ p: "taskd", id: t.id })}
-              >
-                <span><b>{t.assignee}</b> · {t.title}</span>
-                <Pill v={t.status} />
-              </div>
-            ))}
-          </div>
-        </div>
-        {L &&
-          rv > 0 && (
-            <div className="card">
-              <b>Pending Review ({rv})</b>
-              {tasks.filter((t) => t.status === "Review").map((t) => (
-                <div key={t.id} className="row sp" style={{ padding: "6px 0" }}>
-                  <span>{t.title} · {t.assignee}</span>
-                  <button className="btn sm" onClick={() => go({ p: "taskd", id: t.id })}>
-                    Review
-                  </button>
+            <div className="lo-scroll">
+              {projects.map((x) => (
+                <div
+                  key={x.id}
+                  style={{ margin: "14px 0", cursor: "pointer" }}
+                  onClick={() => go({ p: "projd", id: x.id })}
+                >
+                  <div className="row sp">
+                    <span>{x.name}</span>
+                    <span className="mu">{prog(x)}%</span>
+                  </div>
+                  <Bar v={prog(x)} />
                 </div>
               ))}
+              {!projects.length && <p className="mu">No projects yet.</p>}
             </div>
-          )}
+          </div>
+
+          <div className="card">
+            <b>Reports to Super Admin ({reported.reduce((a, t) => a + t.reports.length, 0)})</b>
+            <div className="lo-scroll">
+              {reported.map((t) => (
+                <div key={t.id} className="lo-review" onClick={() => go({ p: "taskd", id: t.id })}>
+                  <span>{t.title}<br /><small className="mu">{t.assignee}</small></span>
+                  <span className="mu">{t.reports.length} sent</span>
+                </div>
+              ))}
+              {!reported.length && <p className="mu">No reports sent yet.</p>}
+            </div>
+          </div>
+
+          <div className="card">
+            <b>Quick Actions</b>
+            <div className="lo-quick">
+              {[
+                ["FolderKanban", "View Project", "Open your projects", () => go({ p: "project" })],
+                [
+                  "UserPlus",
+                  "Assign Task",
+                  "Delegate to your team",
+                  () => setModal({ k: "assign" }),
+                ],
+                ["UsersRound", "View Teams", "See your teams", () => go({ p: "team" })],
+              ].map(([i, a, b, f]) => (
+                <button key={a} className="qbtn" onClick={f}>
+                  <i><Icon n={i} s={20} /></i>
+                  <span><b>{a}</b><small>{b}</small></span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <b>Recent Activity</b>
+          <div className="lo-scroll" style={{ maxHeight: 300 }}>
+            {tasks.map((t) => {
+              const st = s.timer?.id === t.id ? "Started" : t.status;
+
+              return (
+                <div key={t.id} className="lo-act" onClick={() => go({ p: "taskd", id: t.id })}>
+                  <span><b>{t.assignee}</b> : {t.title}</span>
+                  <span className={"st " + st.split(" ")[0]}>{st}</span>
+                </div>
+              );
+            })}
+            {!tasks.length && <p className="mu">No activity yet.</p>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Overview: Task management (employee) ----------
+  if (p === "overview" && E) {
+    const cnt = (st) => tasks.filter((t) => t.status === st).length;
+    const cur = (s.timer && tasks.find((t) => t.id === s.timer.id)) ||
+      tasks.find((t) => t.status === "In Progress" || t.status === "Stopped") ||
+      null;
+    const curRun = !!cur && s.timer?.id === cur.id;
+    const curPending = !!cur && s.stopped === cur.id && cur.status === "Stopped";
+    const upcomingList = tasks
+      .filter((t) => t.status !== "Completed" && (!cur || t.id !== cur.id))
+      .sort((a, b) => a.due.localeCompare(b.due));
+    const stats = [
+      ["Open Tasks", tasks.filter((t) => t.status !== "Completed").length, "ListTodo"],
+      ["Projects", projects.length, "FolderKanban"],
+      ["In Progress", cnt("In Progress"), "Zap"],
+      ["Completed", cnt("Completed"), "Check"],
+      ["Logged Hours", fmt(tasks.reduce((a, t) => a + secs(t), 0)).slice(0, -3), "Clock"],
+    ];
+
+    page = (
+      <div className="grid eo-page">
+        <h2 className="t">Overview</h2>
+
+        <div className="lo-stats five">
+          {stats.map(([a, b, i]) => (
+            <div key={a} className="card stat">
+              <i className="ic"><Icon n={i} s={20} /></i>
+              <div><span>{a}</span><b>{b}</b></div>
+            </div>
+          ))}
+        </div>
+
+        <div className="eo-row">
+          <div className="card eo-cur">
+            <div className="row sp eo-curhead">
+              <b>Current Task</b>
+              {cur && (
+                <span className="row">
+                  <Pill v={cur.priority} />
+                  <Pill v={cur.status} />
+                </span>
+              )}
+            </div>
+            {cur
+              ? (
+                <div className="eo-curbody">
+                  <div
+                    className="eo-curinfo"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => go({ p: "taskd", id: cur.id })}
+                  >
+                    <h3>{cur.title}</h3>
+                    <p className="eo-curdesc">{cur.desc}</p>
+                    <div className="eo-curmeta">
+                      <span>Project : <b>{cur.project}</b></span>
+                      <span>Due Date : <b>{cur.due}</b></span>
+                    </div>
+                  </div>
+                  <div className="eo-curtimer">
+                    <div className="timer"><LiveTime t={cur} timer={s.timer} /></div>
+                    {curRun
+                      ? (
+                        <button
+                          className="btn red"
+                          onClick={() => {
+                            up(stopTimer);
+                            go({ p: "taskd", id: cur.id });
+                          }}
+                        >
+                          <Icon n="Square" s={16} />
+                          {" "}
+                          Stop &amp; Save
+                        </button>
+                      )
+                      : curPending
+                      ? (
+                        <button className="btn" onClick={() => go({ p: "taskd", id: cur.id })}>
+                          Save Changes
+                        </button>
+                      )
+                      : (
+                        <button className="btn" onClick={() => startTimer(cur)}>
+                          <Icon n="Play" s={16} />
+                          {" "}
+                          Resume
+                        </button>
+                      )}
+                  </div>
+                </div>
+              )
+              : <p className="mu eo-none">No active task. Open a task from the list below and start it.</p>}
+          </div>
+
+          <div className="card eo-quick">
+            <b>Quick Actions</b>
+            <div className="lo-quick">
+              {[
+                ["ClipboardCheck", "View Tasks", "Your assigned tasks", () => go({ p: "task" })],
+                ["FolderKanban", "View Project", "Open your projects", () => go({ p: "project" })],
+                ["UsersRound", "View Teams", "See your teams", () => go({ p: "team" })],
+              ].map(([i, a, b, f]) => (
+                <button key={a} className="qbtn" onClick={f}>
+                  <i><Icon n={i} s={20} /></i>
+                  <span><b>{a}</b><small>{b}</small></span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="card eo-up">
+          <b>Upcoming Task</b>
+          <div className="eo-tbl">
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Project</th>
+                  <th>Due Date</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcomingList.map((t) => (
+                  <tr key={t.id} className="cl" onClick={() => go({ p: "taskd", id: t.id })}>
+                    <td><b>{t.title}</b></td>
+                    <td>{t.project}</td>
+                    <td>{t.due}</td>
+                    <td><Pill v={t.priority} /></td>
+                    <td><Pill v={t.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!upcomingList.length && <p className="mu" style={{ padding: 14 }}>No upcoming tasks.</p>}
+          </div>
+        </div>
       </div>
     );
   }
@@ -1872,11 +1718,6 @@ function App() {
       <div className="grid">
         <div className="row sp">
           <h2 className="t">Projects</h2>
-          {M && (
-              <button className="btn" onClick={() => setModal({ k: "proj" })}>
-                + Create Project
-              </button>
-            )}
         </div>
         <ProjList projects={projects} prog={prog} pstat={pstat} go={go} s={s} />
       </div>
@@ -1906,29 +1747,8 @@ function App() {
                 <span key={m} className="row"><span className="avatar">{ini(m)}</span>{m}</span>
               ))}
             </div>
-            {M && (
-                <div className="row" style={{ marginTop: 10 }}>
-                  <button
-                    className="btn red sm"
-                    onClick={() => {
-                      if (confirm("Delete project?")) {
-                        up((d) => {
-                          d.projects = d.projects.filter((y) => y.id !== x.id);
-                        });
-                        back();
-                        setToast("Project deleted");
-                      }
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
           </div>
-          <TaskTable
-            list={s.tasks.filter((t) => t.project === x.name && (M || tasks.includes(t)))}
-            size="mid"
-          />
+          <TaskTable list={tasks.filter((t) => t.project === x.name)} size="mid" />
         </div>
       );
   }
@@ -1942,7 +1762,7 @@ function App() {
       <div className="grid">
         <div className="row sp">
           <h2 className="t">Teams</h2>
-          {(M || L) && (
+          {L && (
               <button className="btn" onClick={() => setModal({ k: "assign" })}>
                 + Assign Task
               </button>
@@ -2015,7 +1835,7 @@ function App() {
       <div className="grid">
         <div className="row sp">
           <h2 className="t">Tasks</h2>
-          {(M || L) && (
+          {L && (
               <button className="btn" onClick={() => setModal({ k: "assign" })}>
                 + Assign Task
               </button>
@@ -2050,46 +1870,12 @@ function App() {
     page = <TaskDetail key={route.id} />;
   }
 
-  if (p === "board") {
-    const [fp, fa] = [0, 0];
-
-    page = (
-      <div className="grid">
-        <h2 className="t" style={{ margin: 0 }}>Team Board</h2>
-        <div className="kan">
-          {ST.map((col) => (
-            <div key={col} className="col">
-              <b>{col} ({tasks.filter((t) => t.status === col).length})</b>
-              {tasks.filter((t) => t.status === col).map((t) => (
-                <div key={t.id} className="kc" onClick={() => go({ p: "taskd", id: t.id })}>
-                  <b>{t.title}</b>
-                  <small className="mu">{t.id} · {t.project}</small>
-                  <div className="row sp"><span>{t.assignee}</span><Pill v={t.priority} /></div>
-                  <select
-                    disabled={E}
-                    onClick={(e) => e.stopPropagation()}
-                    value={t.status}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      up((d) => {
-                        d.tasks.find((x) => x.id === t.id).status = v;
-                        log(d, t.id, `Moved to ${v} on board`);
-                      });
-                    }}
-                  >
-                    {ST.map((z) => <option key={z}>{z}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   if (p === "chat" || p === "dm") {
-    page = <Chat key={p + ws} c={c} kind={p} />;
+    const chans = p === "chat"
+      ? [...new Set(projects.map((x) => slug(x.team)))]
+      : [...new Set(projects.flatMap((x) => [x.lead, ...x.members]))].filter((n) => n !== u.name);
+
+    page = <Chat key={p + ws} c={c} kind={p} chans={chans} />;
   }
 
   if (p === "notif") {
@@ -2097,11 +1883,21 @@ function App() {
       <div className="card" style={{ padding: 0 }}>
         <div className="row sp" style={{ padding: 12 }}>
           <b>Notifications ({unread} unread)</b>
-          <button className="link" onClick={() => up((d) => d.notifs.forEach((n) => n.un = false))}>
+          <button
+            className="link"
+            onClick={() =>
+              up((d) =>
+                d.notifs.forEach((n) => {
+                  if (n.ws === ws) {
+                    n.un = false;
+                  }
+                })
+              )}
+          >
             Mark all as read
           </button>
         </div>
-        {s.notifs.map((n) => (
+        {myNotifs.map((n) => (
           <div
             key={n.id}
             className={"notif " + (n.un ? "un" : "")}
@@ -2137,6 +1933,7 @@ function App() {
               )}
           </div>
         ))}
+        {!myNotifs.length && <p className="mu" style={{ padding: 14 }}>No notifications.</p>}
       </div>
     );
   }
@@ -2188,7 +1985,7 @@ function App() {
                 <br />
                 <small className="mu">Current: {WS[ws]}</small>
                 <hr />
-                {(u.ws || []).filter((w) => w === "lead" || w === "employee").map((w) => (
+                {(u.ws || []).map((w) => (
                   <button key={w} className={w === ws ? "cur" : ""} onClick={() => switchWs(w)}>
                     {WS[w]}
                     {w === ws && <Icon n="Check" s={16} />}
@@ -2207,6 +2004,7 @@ function App() {
                   onClick={() => {
                     up((d) => {
                       stopTimer(d);
+                      d.stopped = null;
                       d.user = null;
                     });
                     setRoute({ p: "overview" });
@@ -2230,12 +2028,27 @@ function App() {
         </div>
       </aside>
       <main className="main">
-        <div className="page" key={JSON.stringify(route) + ws}><BackBtn />{page}</div>
+        <div className="page" key={JSON.stringify(route) + ws}>
+          {p !== "overview" && (
+            <div className="topbar">
+              <BackBtn />
+              {reportTask && (
+                <button
+                  className="btn report"
+                  onClick={() => setModal({ k: "report", t: reportTask })}
+                >
+                  <Icon n="Send" s={18} />
+                  Report
+                </button>
+              )}
+            </div>
+          )}
+          {page}
+        </div>
       </main>
       {modal?.k === "assign" && <Assign />}
       {modal?.k === "reassign" && <Reassign t={modal.t} />}
       {modal?.k === "team" && <TeamModal x={modal.x} />}
-      {modal?.k === "proj" && <NewProject />}
       {modal?.k === "report" && <Report t={modal.t} />}
       <ToastHost />
     </div>
@@ -2299,7 +2112,7 @@ function ProjList({ projects, prog, pstat, go, s }) {
             })}
           </tbody>
         </table>
-        {!l.length && <p className="mu">No projects.</p>}
+        {!l.length && <p className="mu" style={{ padding: 14 }}>No projects.</p>}
       </div>
     </>
   );

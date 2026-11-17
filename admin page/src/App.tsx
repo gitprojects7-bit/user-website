@@ -6,9 +6,12 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Columns3,
+  Download,
   Eye,
   EyeOff,
+  FileText,
   FolderKanban,
   LayoutDashboard,
   ListTodo,
@@ -18,11 +21,13 @@ import {
   Paperclip,
   Phone,
   Plus,
+  Printer,
   Search,
   Square,
   UserPlus,
   UsersRound,
   Video,
+  Wallet,
   X,
   Zap,
 } from "lucide-react";
@@ -44,9 +49,12 @@ const LIB = {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Columns3,
+  Download,
   Eye,
   EyeOff,
+  FileText,
   FolderKanban,
   LayoutDashboard,
   ListTodo,
@@ -56,11 +64,13 @@ const LIB = {
   Paperclip,
   Phone,
   Plus,
+  Printer,
   Search,
   Square,
   UserPlus,
   UsersRound,
   Video,
+  Wallet,
   X,
   Zap,
 };
@@ -94,6 +104,62 @@ const fmt = (s) => {
     m = Math.floor(s % 3600 / 60);
   return `${h}:${String(m).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 };
+
+// ============================================================
+// Invoice helpers
+// ============================================================
+
+const money = (n) =>
+  "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fdate = (s) => {
+  if (!s) {
+    return "—";
+  }
+  const d = new Date(s + "T00:00:00");
+  return isNaN(d) ? s : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
+const pad2 = (n) => String(n).padStart(2, "0");
+
+const isoOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+// Indian financial year runs April to March
+const fyOf = (iso) => {
+  const [y, m] = iso.split("-").map(Number);
+  const st = m >= 4 ? y : y - 1;
+  return `FY ${st}-${pad2((st + 1) % 100)}`;
+};
+
+const FYS = ["FY 2023-24", "FY 2024-25", "FY 2025-26", "FY 2026-27", "FY 2027-28"];
+
+const INV_STATUS = ["Paid", "Pending", "Overdue", "Draft"];
+
+const calc = (items, cg, sg) => {
+  const sub = items.reduce((a, i) => a + (Number(i.q) || 0) * (Number(i.r) || 0), 0);
+  const c1 = sub * (Number(cg) || 0) / 100,
+    s1 = sub * (Number(sg) || 0) / 100;
+  return { sub, c1, s1, total: sub + c1 + s1 };
+};
+
+const blankParty = { name: "", gst: "", addr: "", phone: "", email: "" };
+
+const INV = (no, name, date, fy, amt, due, status) => (
+  {
+    id: no,
+    no,
+    fy,
+    date,
+    due,
+    status,
+    seller: { ...blankParty },
+    buyer: { ...blankParty, name },
+    items: [{ p: "Professional services", h: "9983", q: "1", r: String(amt) }],
+    cgst: "0",
+    sgst: "0",
+    total: amt,
+  }
+);
 
 const T = (id, title, project, assignee, by, priority, due, status, secs = 0) =>
   (
@@ -234,6 +300,19 @@ const seed = {
       4500,
     ),
   ],
+  invoices: [
+    INV("INV-2025-1048", "Northstar Studio", "2025-05-18", "FY 2025-26", 4850, "2025-06-17", "Paid"),
+    INV("INV-2025-1047", "Olive & Oak Market", "2025-05-16", "FY 2025-26", 1275, "2025-06-15", "Pending"),
+    INV("INV-2025-1046", "Meridian Health Co.", "2025-05-12", "FY 2025-26", 8320, "2025-06-11", "Overdue"),
+    INV("INV-2025-1045", "Common Ground", "2025-05-08", "FY 2025-26", 2400, "2025-06-07", "Paid"),
+    INV("INV-2025-1044", "Fieldwork Partners", "2025-05-02", "FY 2025-26", 5600, "2025-06-01", "Pending"),
+    INV("INV-2025-1043", "Little Harbor Books", "2025-04-28", "FY 2025-26", 920, "2025-05-28", "Overdue"),
+    INV("INV-2025-1042", "Aster & Finch", "2025-04-22", "FY 2025-26", 3150, "2025-05-22", "Paid"),
+    INV("INV-2025-1041", "Cedarline Works", "2025-04-18", "FY 2025-26", 1975, "2025-05-18", "Pending"),
+    INV("INV-2025-1040", "Juniper & Stone", "2025-03-28", "FY 2024-25", 3650, "2025-04-27", "Paid"),
+    INV("INV-2025-1039", "Pinecrest Digital", "2025-02-14", "FY 2024-25", 2180, "2025-03-16", "Pending"),
+  ],
+  company: { ...blankParty },
   msgs: {
     "#alpha-engineering": [{ u: "Sneha Rao", x: "Currency cache is live on staging.", t: "09:40" }],
     "#beta-mobile": [{ u: "Priya Sharma", x: "Test builds are on TestFlight.", t: "10:05" }],
@@ -267,9 +346,19 @@ const seed = {
   ],
 };
 
+// Older saved state has no invoices, so merge the new keys in from the seed
 const load = () => {
   try {
-    return JSON.parse(localStorage.getItem(K)) || seed;
+    const sv = JSON.parse(localStorage.getItem(K));
+    if (!sv) {
+      return seed;
+    }
+    return {
+      ...seed,
+      ...sv,
+      invoices: sv.invoices || seed.invoices,
+      company: sv.company || seed.company,
+    };
   } catch (e) {
     return seed;
   }
@@ -284,7 +373,7 @@ const USERS_BASE = PEOPLE.map((n) => ({
 function getUsers() {
   let accs = [];
   try {
-    accs = JSON.parse(localStorage.getItem("wf_acc") || "[]");
+    accs = JSON.parse(localStorage.getItem("wf_admin_acc") || "[]");
   } catch (e) {}
   const extra = accs
     .filter((x) => !USERS_BASE.some((b) => b.email === x.email))
@@ -305,14 +394,6 @@ function Modal({ title, onClose, children }) {
     </div>
   );
 }
-
-const ICONS = {
-  "Total Projects": "FolderKanban",
-  "Total Teams": "UsersRound",
-  "Total Tasks": "ListTodo",
-  "In Progress Projects": "Zap",
-  "Completed Projects": "Check",
-};
 
 const Pill = ({ v }) => <span className={"pill " + v.split(" ")[0]}>{v}</span>;
 
@@ -717,6 +798,761 @@ function ToastHost() {
   return msg ? <div className="toast">{msg}</div> : null;
 }
 
+// ============================================================
+// Invoice pages
+// ============================================================
+
+function InvoiceList({ c }) {
+  const [q, setQ] = useState(""),
+    [fy, setFy] = useState("All"),
+    [st, setSt] = useState("All");
+  const invs = c.s.invoices || [];
+  const years = [...new Set(invs.map((i) => i.fy))].sort().reverse();
+  const list = invs.filter((i) =>
+    (fy === "All" || i.fy === fy) &&
+      (st === "All" || i.status === st) &&
+      (i.no + " " + i.buyer.name).toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <div className="grid">
+      <h2 className="t">Invoices</h2>
+      <div className="toolbar invtb">
+        <div className="search">
+          <span><Icon n="Search" s={18} /></span>
+          <input
+            placeholder="Search invoice no., client…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <select value={fy} onChange={(e) => setFy(e.target.value)}>
+          <option value="All">All financial years</option>
+          {years.map((y) => <option key={y}>{y}</option>)}
+        </select>
+        <select value={st} onChange={(e) => setSt(e.target.value)}>
+          <option value="All">All statuses</option>
+          {INV_STATUS.map((x) => <option key={x}>{x}</option>)}
+        </select>
+        <button className="btn" onClick={() => c.go({ p: "invoicenew" })}>
+          <Icon n="Plus" s={18} />
+          Create invoice
+        </button>
+      </div>
+      <div className="card tbl fix">
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice no.</th>
+              <th>Customer</th>
+              <th>Date</th>
+              <th>Financial year</th>
+              <th className="num">Amount</th>
+              <th>Due date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((i) => (
+              <tr key={i.id} className="cl" onClick={() => c.go({ p: "invoiced", id: i.id })}>
+                <td className="invno">{i.no}</td>
+                <td><b>{i.buyer.name}</b></td>
+                <td>{fdate(i.date)}</td>
+                <td>{i.fy}</td>
+                <td className="num"><b>{money(i.total)}</b></td>
+                <td>{fdate(i.due)}</td>
+                <td><Pill v={i.status} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!list.length && <p className="mu" style={{ padding: 14 }}>No invoices found.</p>}
+      </div>
+    </div>
+  );
+}
+
+function InvoiceForm({ c, edit }) {
+  const invs = c.s.invoices || [];
+  const nextNo = (fy) => {
+    const seq = Math.max(1000, ...invs.map((i) => parseInt(String(i.no).slice(-4)) || 0)) + 1;
+    return `INV-${fy.slice(3, 7)}-${seq}`;
+  };
+
+  const [f, setF] = useState(() => {
+    if (edit) {
+      return {
+        fy: edit.fy,
+        no: edit.no,
+        date: edit.date,
+        due: edit.due,
+        seller: { ...edit.seller },
+        buyer: { ...edit.buyer },
+        items: edit.items.map((x) => ({ ...x })),
+        cgst: edit.cgst,
+        sgst: edit.sgst,
+      };
+    }
+    const d = new Date(),
+      dd = new Date();
+    dd.setDate(dd.getDate() + 30);
+    const date = isoOf(d),
+      fy = fyOf(date);
+    return {
+      fy,
+      no: nextNo(fy),
+      date,
+      due: isoOf(dd),
+      seller: { ...(c.s.company || blankParty) },
+      buyer: { ...blankParty },
+      items: [{ p: "", h: "9983", q: "1", r: "" }],
+      cgst: "9",
+      sgst: "9",
+    };
+  });
+  const [err, setErr] = useState("");
+
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const party = (w, k) => (e) => setF({ ...f, [w]: { ...f[w], [k]: e.target.value } });
+  const item = (i, k) => (e) =>
+    setF({ ...f, items: f.items.map((x, j) => j === i ? { ...x, [k]: e.target.value } : x) });
+
+  const setFy = (e) => {
+    const fy = e.target.value;
+    setF({ ...f, fy, no: edit ? f.no : nextNo(fy) });
+  };
+  const setDate = (e) => {
+    const date = e.target.value;
+    const fy = date ? fyOf(date) : f.fy;
+    setF({ ...f, date, fy, no: edit || fy === f.fy ? f.no : nextNo(fy) });
+  };
+
+  const t = calc(f.items, f.cgst, f.sgst);
+
+  const save = (status) => {
+    const items = f.items.filter((x) => x.p.trim() || Number(x.r));
+    const no = f.no.trim();
+    if (!no) {
+      return setErr("Enter an invoice number.");
+    }
+    if (!f.buyer.name.trim()) {
+      return setErr("Enter the customer name.");
+    }
+    if (status !== "Draft" && !f.seller.name.trim()) {
+      return setErr("Enter your company name.");
+    }
+    if (!items.length) {
+      return setErr("Add at least one line item.");
+    }
+    if (items.some((x) => !x.p.trim())) {
+      return setErr("Every line item needs particulars.");
+    }
+    if (f.due && f.date && f.due < f.date) {
+      return setErr("Due date cannot be before the invoice date.");
+    }
+    if (invs.some((i) => i.no === no && i.id !== edit?.id)) {
+      return setErr("That invoice number already exists.");
+    }
+    const tt = calc(items, f.cgst, f.sgst);
+    const inv = {
+      id: edit ? edit.id : no,
+      no,
+      fy: f.fy,
+      date: f.date,
+      due: f.due,
+      status,
+      seller: f.seller,
+      buyer: f.buyer,
+      items,
+      cgst: f.cgst,
+      sgst: f.sgst,
+      total: tt.total,
+      by: edit?.by || c.u.name,
+    };
+    c.up((d) => {
+      d.invoices = d.invoices || [];
+      const k = d.invoices.findIndex((x) => x.id === inv.id);
+      if (k >= 0) {
+        d.invoices[k] = inv;
+      } else {
+        d.invoices.unshift(inv);
+      }
+      d.company = f.seller;
+      if (status !== "Draft") {
+        d.notifs.unshift({
+          id: Date.now() + Math.random(),
+          txt: `Invoice ${no} generated for ${inv.buyer.name}`,
+          cat: "Invoice",
+          un: true,
+          t: "just now",
+        });
+      }
+    });
+    c.toast(status === "Draft" ? "Draft saved" : "Invoice generated");
+    if (status === "Draft") {
+      c.back();
+    } else {
+      c.replace({ p: "invoiced", id: inv.id });
+    }
+  };
+
+  // Plain function (not a component) so inputs keep focus while typing
+  const partyFields = (w) => (
+    <div className="fg">
+      <label>
+        {w === "seller" ? "Company name" : "Customer name"}
+        <input
+          placeholder={w === "seller" ? "Company name" : "Customer or company"}
+          value={f[w].name}
+          onChange={party(w, "name")}
+        />
+      </label>
+      <label>
+        GST
+        <input placeholder="GST number" value={f[w].gst} onChange={party(w, "gst")} />
+      </label>
+      <label className="full">
+        Address
+        <input
+          placeholder="Street, city, state, postal code"
+          value={f[w].addr}
+          onChange={party(w, "addr")}
+        />
+      </label>
+      <label>
+        Phone
+        <input placeholder="Phone number" value={f[w].phone} onChange={party(w, "phone")} />
+      </label>
+      <label>
+        Email
+        <input
+          type="email"
+          placeholder="Email address"
+          value={f[w].email}
+          onChange={party(w, "email")}
+        />
+      </label>
+    </div>
+  );
+
+  return (
+    <div className="grid">
+      <h2 className="t">{edit ? "Edit draft invoice" : "Create invoice"}</h2>
+      <form
+        className="invf"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save("Pending");
+        }}
+      >
+        <div className="invl">
+          <div className="card">
+            <h3>Invoice details</h3>
+            <div className="fg">
+              <label>
+                Financial year
+                <select value={f.fy} onChange={setFy}>
+                  {FYS.map((y) => <option key={y}>{y}</option>)}
+                </select>
+              </label>
+              <label>
+                Invoice no.
+                <input value={f.no} onChange={set("no")} />
+              </label>
+              <label>
+                Invoice date
+                <input type="date" value={f.date} onChange={setDate} />
+              </label>
+              <label>
+                Due date
+                <input type="date" value={f.due} onChange={set("due")} />
+              </label>
+            </div>
+          </div>
+          <div className="card">
+            <h3>Seller / company details</h3>
+            {partyFields("seller")}
+          </div>
+          <div className="card">
+            <h3>Bill to</h3>
+            {partyFields("buyer")}
+          </div>
+        </div>
+
+        <div className="invr">
+          <div className="card">
+            <div className="row sp" style={{ marginBottom: 10 }}>
+              <h3 style={{ margin: 0 }}>Line items</h3>
+              <span className="mu">Amounts shown in INR</span>
+            </div>
+            <div className="li">
+              <table>
+                <thead>
+                  <tr>
+                    <th>S.no</th>
+                    <th>Particulars</th>
+                    <th>HSN/SAC</th>
+                    <th>Qty</th>
+                    <th className="num">Price</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {f.items.map((it, i) => (
+                    <tr key={i}>
+                      <td>{i + 1}</td>
+                      <td>
+                        <input
+                          placeholder="Description"
+                          value={it.p}
+                          onChange={item(i, "p")}
+                        />
+                      </td>
+                      <td><input value={it.h} onChange={item(i, "h")} /></td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={it.q}
+                          onChange={item(i, "q")}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="r"
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0"
+                          value={it.r}
+                          onChange={item(i, "r")}
+                        />
+                      </td>
+                      <td style={{ width: 36 }}>
+                        {f.items.length > 1 && (
+                          <button
+                            type="button"
+                            className="link"
+                            aria-label="Remove item"
+                            onClick={() =>
+                              setF({ ...f, items: f.items.filter((_, j) => j !== i) })}
+                          >
+                            <Icon n="X" s={16} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button
+              type="button"
+              className="btn sm sec"
+              style={{ marginTop: 10 }}
+              onClick={() =>
+                setF({ ...f, items: [...f.items, { p: "", h: "9983", q: "1", r: "" }] })}
+            >
+              <Icon n="Plus" s={16} />
+              Add item
+            </button>
+            <div className="itot">
+              <div className="tr"><span>Sub total</span><b>{money(t.sub)}</b></div>
+              <div className="tr">
+                <span className="pc">
+                  CGST
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={f.cgst}
+                    onChange={set("cgst")}
+                  />
+                  %
+                </span>
+                <b>{money(t.c1)}</b>
+              </div>
+              <div className="tr">
+                <span className="pc">
+                  SGST
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={f.sgst}
+                    onChange={set("sgst")}
+                  />
+                  %
+                </span>
+                <b>{money(t.s1)}</b>
+              </div>
+              <div className="tr grand"><span>Total Amount</span><span>{money(t.total)}</span></div>
+            </div>
+          </div>
+          {err && <div className="err">{err}</div>}
+          <div className="iact">
+            <button type="button" className="btn sec" onClick={() => save("Draft")}>
+              Save draft
+            </button>
+            <button className="btn">Generate invoice</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function InvoiceView({ c, id }) {
+  const inv = (c.s.invoices || []).find((x) => x.id === id);
+  if (!inv) {
+    return <div className="card">Invoice not found.</div>;
+  }
+  const t = calc(inv.items, inv.cgst, inv.sgst);
+
+  // Browser print dialog doubles as "Save as PDF"; the title becomes the file name
+  const print = (hint) => {
+    const old = document.title;
+    document.title = inv.no;
+    const restore = () => {
+      document.title = old;
+      window.removeEventListener("afterprint", restore);
+    };
+    window.addEventListener("afterprint", restore);
+    if (hint) {
+      c.toast("In the print window, choose “Save as PDF” as the destination");
+    }
+    setTimeout(() => window.print(), hint ? 400 : 0);
+  };
+
+  const who = (p, fb) => (
+    <>
+      <b>{p.name || fb}</b>
+      {p.addr && <div>{p.addr}</div>}
+      {p.gst && <div>GST: {p.gst}</div>}
+      {p.phone && <div>{p.phone}</div>}
+      {p.email && <div>{p.email}</div>}
+    </>
+  );
+
+  return (
+    <div className="grid">
+      <div className="row sp noprint">
+        <div>
+          <span className="mu">Invoice · {inv.fy}</span>
+          <h2 className="t">{inv.no}</h2>
+        </div>
+        <span className="row">
+          <Pill v={inv.status} />
+          {inv.status === "Draft" && (
+            <button
+              className="btn sec sm"
+              onClick={() => c.go({ p: "invoicenew", id: inv.id })}
+            >
+              Edit draft
+            </button>
+          )}
+          {inv.status !== "Paid" && inv.status !== "Draft" && (
+            <button
+              className="btn sec sm"
+              onClick={() => {
+                c.up((d) => {
+                  d.invoices.find((x) => x.id === inv.id).status = "Paid";
+                });
+                c.toast("Marked as paid");
+              }}
+            >
+              <Icon n="Check" s={16} />
+              Mark as paid
+            </button>
+          )}
+          <button className="btn sec sm" onClick={() => print(false)}>
+            <Icon n="Printer" s={16} />
+            Print
+          </button>
+          <button className="btn sm" onClick={() => print(true)}>
+            <Icon n="Download" s={16} />
+            Download PDF
+          </button>
+        </span>
+      </div>
+
+      <div className="card inv-doc">
+        <div className="inv-top">
+          <div>
+            <h1>INVOICE</h1>
+            <span className="mu">{inv.no}</span>
+          </div>
+          <div className="inv-meta">
+            <span>Invoice date: <b>{fdate(inv.date)}</b></span>
+            <span>Due date: <b>{fdate(inv.due)}</b></span>
+            <span>Financial year: <b>{inv.fy}</b></span>
+            <span>Status: <b>{inv.status}</b></span>
+          </div>
+        </div>
+        <div className="inv-parties">
+          <div>
+            <span className="cap mu">FROM</span>
+            {who(inv.seller, "—")}
+          </div>
+          <div>
+            <span className="cap mu">BILL TO</span>
+            {who(inv.buyer, "—")}
+          </div>
+        </div>
+        <table className="inv-tbl">
+          <thead>
+            <tr>
+              <th>S.no</th>
+              <th>Particulars</th>
+              <th>HSN/SAC</th>
+              <th className="num">Qty</th>
+              <th className="num">Price</th>
+              <th className="num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {inv.items.map((it, i) => (
+              <tr key={i}>
+                <td>{i + 1}</td>
+                <td>{it.p}</td>
+                <td>{it.h}</td>
+                <td className="num">{it.q}</td>
+                <td className="num">{money(it.r)}</td>
+                <td className="num">{money((Number(it.q) || 0) * (Number(it.r) || 0))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="itot">
+          <div className="tr"><span>Sub total</span><b>{money(t.sub)}</b></div>
+          <div className="tr"><span>CGST ({Number(inv.cgst) || 0}%)</span><b>{money(t.c1)}</b></div>
+          <div className="tr"><span>SGST ({Number(inv.sgst) || 0}%)</span><b>{money(t.s1)}</b></div>
+          <div className="tr grand"><span>Total Amount</span><span>{money(t.total)}</span></div>
+        </div>
+        <p className="mu" style={{ marginBottom: 0, fontSize: 12 }}>
+          Amounts shown in INR. This is a computer generated invoice.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Overview page
+// ============================================================
+
+const money0 = (n) =>
+  "₹" + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+
+const MONTHS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
+
+const Ring = ({ v }) => {
+  const r = 15,
+    len = 2 * Math.PI * r;
+  return (
+    <svg width="44" height="44" viewBox="0 0 40 40">
+      <circle className="rg-bg" cx="20" cy="20" r={r} />
+      <circle
+        className="rg-fg"
+        cx="20"
+        cy="20"
+        r={r}
+        strokeDasharray={len}
+        strokeDashoffset={len * (1 - v / 100)}
+        transform="rotate(-90 20 20)"
+      />
+      <text className="rg-tx" x="20" y="23.2" textAnchor="middle">{v}%</text>
+    </svg>
+  );
+};
+
+function LineChart({ vals, labels }) {
+  const W = 600,
+    H = 230,
+    pl = 54,
+    pr = 16,
+    pt = 14,
+    pb = 30;
+  const mx = Math.max(...vals, 1);
+  const rough = mx / 4,
+    mag = Math.pow(10, Math.floor(Math.log10(rough))),
+    nr = rough / mag;
+  const step = (nr <= 1 ? 1 : nr <= 2 ? 2 : nr <= 5 ? 5 : 10) * mag;
+  const n = Math.max(1, Math.ceil(mx / step));
+  const top = step * n;
+  const x = (i) => pl + i * (W - pl - pr) / Math.max(1, vals.length - 1);
+  const y = (v) => pt + (1 - v / top) * (H - pt - pb);
+  const pts = vals.map((v, i) => [x(i), y(v)]);
+  const line = pts
+    .map((q, i) => (i ? "L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1))
+    .join(" ");
+  const area = `${line} L${x(vals.length - 1).toFixed(1)} ${y(0)} L${x(0).toFixed(1)} ${y(0)} Z`;
+  const lbl = (v) =>
+    v === 0 ? "₹0" : "₹" + (v >= 100000 ? v / 100000 + "L" : v >= 1000 ? v / 1000 + "k" : v);
+  const ticks = Array.from({ length: n + 1 }, (_, i) => step * i);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+      {ticks.map((v) => (
+        <g key={v}>
+          <line className="ch-grid" x1={pl} x2={W - pr} y1={y(v)} y2={y(v)} />
+          <text className="ch-lbl" x={pl - 8} y={y(v) + 4} textAnchor="end">{lbl(v)}</text>
+        </g>
+      ))}
+      <path className="ch-area" d={area} />
+      <path className="ch-line" d={line} />
+      {pts.map((q, i) => (
+        <circle key={i} className="ch-dot" cx={q[0]} cy={q[1]} r="3.5">
+          <title>{labels[i]}: {money(vals[i])}</title>
+        </circle>
+      ))}
+      {labels.map((l, i) => (
+        <text key={l} className="ch-lbl" x={x(i)} y={H - 8} textAnchor="middle">{l}</text>
+      ))}
+    </svg>
+  );
+}
+
+function Overview({ c, setModal, prog, pstat }) {
+  const { s, go } = c;
+  const invs = s.invoices || [];
+  const live = invs.filter((i) => i.status !== "Draft");
+  const [fy, setFy] = useState(() => {
+    const last = live.map((i) => i.date).sort().pop();
+    return fyOf(last || isoOf(new Date()));
+  });
+
+  const sum = (arr) => arr.reduce((a, i) => a + i.total, 0);
+  const ym = isoOf(new Date()).slice(0, 7);
+  const pj = s.projects.map(pstat);
+  const stats = [
+    ["FileText", "Invoices This Month", live.filter((i) => i.date.startsWith(ym)).length],
+    [
+      "Clock",
+      "Outstanding",
+      money0(sum(live.filter((i) => i.status === "Pending" || i.status === "Overdue"))),
+    ],
+    ["Wallet", "Paid", money0(sum(live.filter((i) => i.status === "Paid")))],
+    ["FolderKanban", "Total Projects", s.projects.length],
+    ["Zap", "In Progress", pj.filter((x) => x === "In Progress").length],
+    ["Check", "Completed", pj.filter((x) => x === "Completed").length],
+  ];
+
+  const st0 = Number(fy.slice(3, 7));
+  const keys = MONTHS.map((_, k) => `${k < 9 ? st0 : st0 + 1}-${pad2((k + 3) % 12 + 1)}`);
+  const vals = keys.map((k) => sum(live.filter((i) => i.date.startsWith(k))));
+
+  const actions = [
+    ["Plus", "Create Project", "Start a new project", () => setModal({ k: "proj" })],
+    ["UserPlus", "Assign Task", "Delegate work to a member", () => setModal({ k: "assign" })],
+    ["FileText", "Create Invoice", "Generate a new invoice", () => go({ p: "invoicenew" })],
+    ["Columns3", "View Team Board", "Kanban of all tasks", () => go({ p: "board" })],
+  ];
+
+  const rows = [
+    ...[...invs]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 8)
+      .map((i) => ({
+        k: "inv-" + i.id,
+        act: "Invoice " + i.no,
+        who: i.buyer.name,
+        owner: i.by || "Admin",
+        upd: fdate(i.date),
+        st: i.status,
+        open: () => go({ p: "invoiced", id: i.id }),
+      })),
+    ...s.tasks.map((t) => ({
+      k: t.id,
+      act: t.title,
+      who: t.project,
+      owner: t.assignee,
+      upd: t.log.length ? t.log[t.log.length - 1].t : "—",
+      st: t.status,
+      open: () => go({ p: "taskd", id: t.id }),
+    })),
+  ];
+
+  return (
+    <div className="grid ovw">
+      <h2 className="t">Overview</h2>
+
+      <div className="g6">
+        {stats.map(([ic, a, b]) => (
+          <div key={a} className="card stat sm">
+            <i className="ic"><Icon n={ic} s={20} /></i>
+            <div><span>{a}</span><b>{b}</b></div>
+          </div>
+        ))}
+      </div>
+
+      <div className="ovmid">
+        <div className="card">
+          <div className="chd">
+            <b>Monthly Overview</b>
+            <select value={fy} onChange={(e) => setFy(e.target.value)}>
+              {FYS.map((y) => <option key={y}>{y}</option>)}
+            </select>
+          </div>
+          <div className="scr chart"><LineChart vals={vals} labels={MONTHS} /></div>
+        </div>
+
+        <div className="card">
+          <div className="chd"><b>Project Progress</b></div>
+          <div className="scr">
+            {s.projects.map((x) => (
+              <div key={x.id} className="prr" onClick={() => go({ p: "projd", id: x.id })}>
+                <span>{x.name}</span>
+                <Ring v={prog(x)} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="chd"><b>Quick Actions</b></div>
+          <div className="qcol scr">
+            {actions.map(([i, a, b, fn]) => (
+              <button key={a} className="qbtn" onClick={fn}>
+                <i><Icon n={i} s={18} /></i>
+                <span><b>{a}</b><small>{b}</small></span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="card act">
+        <b className="acth">Recent Activity</b>
+        <div className="actscr">
+          <table>
+            <thead>
+              <tr>
+                <th>Activity</th>
+                <th>Project / Client</th>
+                <th>Owner</th>
+                <th>Updated</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.k} className="cl" onClick={r.open}>
+                  <td><b>{r.act}</b></td>
+                  <td>{r.who}</td>
+                  <td>{r.owner}</td>
+                  <td>{r.upd}</td>
+                  <td><Pill v={r.st} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [s, setS] = useState(load),
     [route, setRoute] = useState({ p: "overview" }),
@@ -785,6 +1621,11 @@ function App() {
     setRoute(r);
     setDd(false);
   };
+  // Swap the current page without adding a history entry
+  const replace = (r) => {
+    setRoute(r);
+    setDd(false);
+  };
   const back = () => {
     if (hist.length) {
       setRoute(hist[hist.length - 1]);
@@ -793,7 +1634,7 @@ function App() {
       setRoute({ p: "overview" });
     }
   };
-  const c = { s, up, go, u: s.user, toast: setToast };
+  const c = { s, up, go, replace, back, u: s.user, toast: setToast };
   if (!s.user) {
     return <Auth c={c} />;
   }
@@ -819,6 +1660,7 @@ function App() {
 
   const nav = [
     ["overview", "LayoutDashboard", "Overview"],
+    ["invoice", "FileText", "Invoice"],
     ["project", "FolderKanban", "Project"],
     ["team", "UsersRound", "Team"],
     ["task", "ListTodo", "Task"],
@@ -1368,75 +2210,20 @@ function App() {
   const p = route.p;
 
   if (p === "overview") {
-    const stats = [
-      ["Total Projects", s.projects.length],
-      ["Total Teams", new Set(s.projects.map((x) => x.team)).size],
-      ["Total Tasks", s.tasks.length],
-      ["In Progress Projects", s.projects.filter((x) => pstat(x) === "In Progress").length],
-      ["Completed Projects", s.projects.filter((x) => pstat(x) === "Completed").length],
-    ];
-    const actions = [
-      ["Plus", "Create Project", "Start a new project", () => setModal({ k: "proj" })],
-      ["UserPlus", "Assign Task", "Delegate work to a member", () => setModal({ k: "assign" })],
-      ["Columns3", "View Team Board", "Kanban of all tasks", () => go({ p: "board" })],
-    ];
+    page = <Overview c={c} setModal={setModal} prog={prog} pstat={pstat} />;
+  }
 
-    page = (
-      <div className="grid">
-        <h2 className="t" style={{ margin: 0 }}>Overview</h2>
-        <div className="grid g4">
-          {stats.map(([a, b]) => (
-            <div key={a} className="card stat">
-              <i className="ic"><Icon n={ICONS[a]} s={22} /></i>
-              <div><span>{a}</span><b>{b}</b></div>
-            </div>
-          ))}
-        </div>
-        <div className="card">
-          <b>Quick Actions</b>
-          <div className="qgrid">
-            {actions.map(([i, a, b, f]) => (
-              <button key={a} className="qbtn" onClick={f}>
-                <i><Icon n={i} s={20} /></i>
-                <span><b>{a}</b><small>{b}</small></span>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid g2">
-          <div className="card">
-            <b>Project Progress</b>
-            {projects.map((x) => (
-              <div
-                key={x.id}
-                style={{ margin: "10px 0", cursor: "pointer" }}
-                onClick={() => go({ p: "projd", id: x.id })}
-              >
-                <div className="row sp">
-                  <span>{x.name}</span>
-                  <span className="mu">{prog(x)}%</span>
-                </div>
-                <Bar v={prog(x)} />
-              </div>
-            ))}
-          </div>
-          <div className="card">
-            <b>Recent Activity</b>
-            {tasks.slice(0, 6).map((t) => (
-              <div
-                key={t.id}
-                className="row sp"
-                style={{ padding: "6px 0", borderTop: "1px solid var(--bd)", cursor: "pointer" }}
-                onClick={() => go({ p: "taskd", id: t.id })}
-              >
-                <span><b>{t.assignee}</b> · {t.title}</span>
-                <Pill v={t.status} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+  if (p === "invoice") {
+    page = <InvoiceList c={c} />;
+  }
+
+  if (p === "invoicenew") {
+    const ed = route.id ? (s.invoices || []).find((x) => x.id === route.id) : null;
+    page = <InvoiceForm key={route.id || "new"} c={c} edit={ed} />;
+  }
+
+  if (p === "invoiced") {
+    page = <InvoiceView key={route.id} c={c} id={route.id} />;
   }
 
   if (p === "project") {
@@ -1474,10 +2261,9 @@ function App() {
                 <span key={m} className="row"><span className="avatar">{ini(m)}</span>{m}</span>
               ))}
             </div>
-            <div className="row" style={{ marginTop: 10 }}>\2\n                </div>
           </div>
           <TaskTable
-            list={s.tasks.filter((t) => t.project === x.name && (M || tasks.includes(t)))}
+            list={s.tasks.filter((t) => t.project === x.name)}
             size="mid"
           />
         </div>
@@ -1685,6 +2471,12 @@ function App() {
     );
   }
 
+  const navOn = (k) =>
+    p === k ||
+    (p === "taskd" && k === "task") ||
+    (p === "projd" && k === "project") ||
+    ((p === "invoicenew" || p === "invoiced") && k === "invoice");
+
   return (
     <div className={"shell" + (side ? " open" : "")}>
       <aside className={"side" + (side ? " open" : "")}>
@@ -1709,12 +2501,7 @@ function App() {
               key={k}
               aria-label={l}
               data-tip={side ? undefined : l}
-              className={"nav " +
-                (
-                  (p === k || (p === "taskd" && k === "task") || (p === "projd" && k === "project"))
-                    ? "on"
-                    : ""
-                )}
+              className={"nav " + (navOn(k) ? "on" : "")}
               onClick={() => go({ p: k })}
             >
               <Icon n={i} s={22} />

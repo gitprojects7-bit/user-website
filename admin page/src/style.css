@@ -130,6 +130,9 @@ textarea:focus {
 }
 
 .auth {
+  position: relative;
+  --mx: 68%;
+  --my: 28%;
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1.05fr 1fr;
@@ -139,7 +142,9 @@ textarea:focus {
 }
 
 .hero {
-  padding: 56px;
+  position: relative;
+  z-index: 1;
+  padding: 56px 40px 56px clamp(64px, 11vw, 200px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -160,6 +165,8 @@ textarea:focus {
 }
 
 .auth .box {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -391,18 +398,18 @@ textarea:focus {
 .shell {
   height: 100vh;
   display: grid;
-  grid-template-columns: 92px 1fr;
+  grid-template-columns: 104px 1fr;
   transition: grid-template-columns .35s cubic-bezier(.2, .8, .2, 1);
   animation: fade .6s both;
 }
 
 .shell.open {
-  grid-template-columns: 268px 1fr;
+  grid-template-columns: 280px 1fr;
 }
 
 .side {
-  margin: 12px 0;
-  border-radius: 0 36px 36px 0;
+  margin: 12px 0 12px 12px;
+  border-radius: 20px;
   background: linear-gradient(180deg, #b3d6ea, #9CC6E0 45%, #86b6d3);
   display: flex;
   flex-direction: column;
@@ -410,7 +417,7 @@ textarea:focus {
   padding: 20px 0 18px;
   position: relative;
   z-index: 10;
-  box-shadow: 12px 0 36px -18px rgba(43, 90, 122, .6);
+  box-shadow: 0 18px 40px -18px rgba(43, 90, 122, .6);
 }
 
 .side.open {
@@ -608,6 +615,7 @@ textarea:focus {
 }
 
 .pav {
+  overflow: hidden;
   width: 46px;
   height: 46px;
   border-radius: 50%;
@@ -657,12 +665,12 @@ textarea:focus {
   position: absolute;
   left: calc(100% + 16px);
   bottom: 0;
-  width: 268px;
+  width: 190px;
   background: var(--pw2);
   color: var(--ink);
   border: 1px solid var(--bd);
   border-radius: 20px;
-  padding: 12px;
+  padding: 8px;
   box-shadow: 0 30px 60px -20px rgba(23, 50, 74, .5);
   animation: pop .2s both;
   z-index: 30;
@@ -676,7 +684,8 @@ textarea:focus {
 
 .dd button {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 10px;
   align-items: center;
   width: 100%;
   background: none;
@@ -876,17 +885,15 @@ h2.t {
 .tbl {
   padding: 0;
   overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--gb2) transparent;
 }
 
 .tbl.fix {
-  height: calc(100vh - 240px);
-  min-height: 260px;
+  height: calc(100vh - 300px);
+  min-height: 240px;
 }
 
 .tbl.mid {
-  max-height: 340px;
+  max-height: 320px;
 }
 
 table {
@@ -908,8 +915,9 @@ th {
 }
 
 td {
-  padding: 14px;
+  padding: 11px 14px;
   border-top: 1px solid var(--bd);
+  font-size: 13px;
 }
 
 tbody tr:nth-child(even) {
@@ -1119,6 +1127,7 @@ tr.cl:hover {
 .kan {
   display: grid;
   grid-template-columns: repeat(4, minmax(210px, 1fr));
+  grid-template-rows: minmax(0, 1fr);
   gap: 12px;
   overflow: auto;
 }
@@ -1130,6 +1139,8 @@ tr.cl:hover {
   display: grid;
   gap: 10px;
   align-content: start;
+  min-height: 0;
+  overflow: auto;
 }
 
 .kc {
@@ -1151,6 +1162,7 @@ tr.cl:hover {
 .chat {
   display: grid;
   grid-template-columns: 240px 1fr;
+  grid-template-rows: minmax(0, 1fr);
   height: calc(100vh - 170px);
   padding: 0;
   overflow: hidden;
@@ -1160,6 +1172,7 @@ tr.cl:hover {
   border-right: 1px solid var(--bd);
   padding: 10px;
   overflow: auto;
+  min-height: 0;
 }
 
 .chl .search {
@@ -1192,10 +1205,12 @@ tr.cl:hover {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .msgs {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 14px;
   display: grid;
@@ -1311,10 +1326,10 @@ tr.cl:hover {
     display: none;
   }
   .shell {
-    grid-template-columns: 72px 1fr;
+    grid-template-columns: 84px 1fr;
   }
   .shell.open {
-    grid-template-columns: 230px 1fr;
+    grid-template-columns: 242px 1fr;
   }
   .main {
     padding: 18px 14px;
@@ -1359,8 +1374,6 @@ tr.cl:hover {
   height: 150px;
   overflow: auto;
   align-content: start;
-  scrollbar-width: thin;
-  scrollbar-color: var(--gb2) transparent;
 }
 
 .modal .mrow {
@@ -1465,6 +1478,311 @@ tr.cl:hover {
 }
 
 /* ============================================================
+   Fit pages: the page itself never scrolls, only inner lists do
+   ============================================================ */
+
+.page.fit {
+  height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.page.fit > .phead {
+  flex: none;
+}
+
+.page.fit > .grid.fit {
+  flex: 1;
+  min-height: 0;
+}
+
+.page.fit > .chat,
+.page.fit > .notifp {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.notifp {
+  overflow: auto;
+}
+
+.grid.fit {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.grid.fit > * {
+  flex: none;
+}
+
+.grid.fit > .tbl.fix,
+.grid.fit > .tbl.mid,
+.grid.fit > .kan {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+}
+
+/* ============================================================
+   Metric cards (shared by every page) - larger size
+   ============================================================ */
+
+.mtr {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stat.sm {
+  padding: 16px 20px;
+  gap: 14px;
+}
+
+.stat.sm > div {
+  min-width: 0;
+}
+
+.stat.sm .ic {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.stat.sm span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: .04em;
+  line-height: 1.25;
+}
+
+.stat.sm b {
+  font-size: clamp(22px, 1.9vw, 27px);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat.sm small {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mu);
+  line-height: 1.3;
+}
+
+@media (max-width: 1280px) {
+  .stat.sm {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  .stat.sm .ic {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+  }
+}
+
+@media (max-width: 980px) {
+  .mtr {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================
+   Task details + team lead report
+   ============================================================ */
+
+.tdrow {
+  display: grid;
+  gap: 18px;
+  justify-content: center;
+  align-content: start;
+  min-height: 0;
+}
+
+.grid.fit > .tdrow {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* Single card: fixed readable width, centred, height follows content */
+.tdrow.one {
+  grid-template-columns: minmax(0, 760px);
+  grid-template-rows: auto;
+  padding-top: 8px;
+}
+
+/* Review: two equal containers side by side, same height */
+.tdrow.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  align-content: stretch;
+  max-width: 1320px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.tdc {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding: 28px 32px;
+  border-radius: 26px;
+}
+
+.tdtop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tdid {
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--gbd);
+  letter-spacing: .02em;
+}
+
+.tdtitle {
+  margin: 16px 0 8px;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -.03em;
+  color: var(--navy);
+}
+
+.tddesc {
+  margin: 0 0 22px;
+  color: var(--mu);
+  line-height: 1.6;
+  font-size: 14.5px;
+}
+
+/* Label above value, no inner boxes - just one divider above the details */
+.tdgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px 32px;
+  padding-top: 22px;
+  border-top: 1px solid var(--bd);
+}
+
+.tdcell {
+  min-width: 0;
+}
+
+.tdcell .cap,
+.kv .cap {
+  display: block;
+  color: var(--mu);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: 10.5px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.tdcell > div {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+}
+
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.who .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 10px;
+}
+
+.rc .tdtop {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--bd);
+}
+
+.repscr {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin-top: 20px;
+  padding-right: 4px;
+}
+
+.emptyrep {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--mu);
+}
+
+.tdh {
+  margin: 0 0 12px;
+  font-size: 16px;
+  letter-spacing: -.02em;
+  color: var(--navy);
+}
+
+.kvg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 32px;
+}
+
+.kv {
+  min-width: 0;
+}
+
+.kv.full {
+  grid-column: 1 / -1;
+}
+
+.kv > div {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.rep + .rep {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 2px solid var(--bd);
+}
+
+.rep > .row {
+  margin-bottom: 10px;
+}
+
+@media (max-width: 980px) {
+  .tdrow.two {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    overflow: auto;
+  }
+  .tdgrid,
+  .kvg {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
    Invoice
    ============================================================ */
 
@@ -1505,22 +1823,59 @@ td.num {
   min-height: 42px;
 }
 
-/* create / edit form */
+/* create / edit form - follows the hand-drawn layout:
+   row 1  invoice details (full width)
+   row 2  left: seller + bill to   |   right: line items + totals
+   row 3  Save draft (left)        |   Generate invoice (right)          */
 .invf {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 14px;
-  align-items: start;
+  min-height: 0;
 }
 
-.invl,
-.invr {
+.grid.fit > .invf {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.invdet {
+  grid-column: 1 / -1;
+}
+
+.invl {
   display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
+  min-height: 0;
+}
+
+/* left containers: compact inputs so everything fits, no scrollbar needed */
+.invl > .card {
+  min-height: 0;
+  overflow: visible;
+  padding: 12px 18px 14px;
+}
+
+.invdet {
+  padding: 12px 18px 14px;
+}
+
+.invr {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 14px 18px 16px;
+}
+
+.liscr {
+  flex: none;
 }
 
 .invf h3 {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   font-size: 16px;
   letter-spacing: -.02em;
   color: var(--navy);
@@ -1536,14 +1891,34 @@ td.num {
 .fg {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px 12px;
+  gap: 8px 12px;
+}
+
+/* smaller inputs inside the invoice form */
+.invf input:not([type=checkbox]):not([type=file]),
+.invf select {
+  padding: 5px 11px;
+  line-height: 1.3;
+  border-radius: 6px;
+}
+
+.invf label {
+  gap: 3px;
+  line-height: 1.2;
+}
+
+.fg.fg4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 18px;
 }
 
 .fg .full {
   grid-column: 1 / -1;
 }
 
+/* fixed height = header + 3 rows; the 4th item onwards scrolls inside */
 .li {
+  height: 178px;
   overflow: auto;
   border: 1px solid var(--bd);
   border-radius: 14px;
@@ -1586,6 +1961,29 @@ td.num {
   width: min(340px, 100%);
 }
 
+.invr .itot {
+  flex: none;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.invr .itot .tr {
+  padding: 6px 0;
+}
+
+@media (max-height: 780px) {
+  .invf input:not([type=checkbox]):not([type=file]),
+  .invf select {
+    padding: 3px 10px;
+  }
+  .fg {
+    gap: 5px 12px;
+  }
+  .li {
+    height: 160px;
+  }
+}
+
 .itot .tr {
   display: flex;
   align-items: center;
@@ -1617,12 +2015,35 @@ td.num {
   color: var(--gbd);
 }
 
-.iact {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
+/* bottom action row: same two columns as the body above */
+.invact {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 14px;
   align-items: center;
-  flex-wrap: wrap;
+}
+
+.invact .al {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.invact .al .err {
+  margin-right: auto;
+  font-size: 13px;
+}
+
+.invact .ar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.invact .btn {
+  min-width: 170px;
 }
 
 /* invoice document (view / print) */
@@ -1684,11 +2105,38 @@ td.num {
 @media (max-width: 980px) {
   .invf {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    overflow: auto;
+    align-content: start;
+  }
+  .invl {
+    grid-template-rows: none;
+  }
+  .invl > .card,
+  .invr {
+    overflow: visible;
+  }
+  .invr {
+    display: block;
+  }
+  .invact {
+    grid-template-columns: 1fr;
+  }
+  .invact .al,
+  .invact .ar {
+    justify-content: stretch;
+  }
+  .invact .btn {
+    flex: 1;
+  }
+  .fg.fg4 {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
 @media (max-width: 760px) {
   .fg,
+  .fg.fg4,
   .inv-parties {
     grid-template-columns: 1fr;
   }
@@ -1697,6 +2145,9 @@ td.num {
   }
   .inv-meta {
     text-align: left;
+  }
+  .page.fit {
+    height: calc(100vh - 36px);
   }
 }
 
@@ -1749,42 +2200,10 @@ td.num {
    Overview
    ============================================================ */
 
+/* metric cards are bigger now, so the containers below are shorter */
 .ovw {
-  height: calc(100vh - 60px);
-  min-height: 720px;
-  grid-template-rows: auto auto 330px minmax(0, 1fr);
-}
-
-.g6 {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: auto auto 300px 380px;
   gap: 14px;
-}
-
-.stat.sm {
-  padding: 14px;
-  gap: 12px;
-}
-
-.stat.sm > div {
-  min-width: 0;
-}
-
-.stat.sm .ic {
-  width: 40px;
-  height: 40px;
-  border-radius: 13px;
-}
-
-.stat.sm span {
-  display: block;
-  font-size: 10px;
-  letter-spacing: .04em;
-  line-height: 1.25;
-}
-
-.stat.sm b {
-  font-size: 22px;
 }
 
 .ovmid {
@@ -1798,14 +2217,13 @@ td.num {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding: 14px 18px 16px;
 }
 
 .scr {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--gb2) transparent;
 }
 
 .chd {
@@ -1814,6 +2232,7 @@ td.num {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
+  min-height: 30px;
 }
 
 .chd select {
@@ -1829,11 +2248,12 @@ td.num {
   overflow: hidden;
 }
 
-.chart svg {
+.chartbox {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+}
+
+.chartbox svg {
   display: block;
 }
 
@@ -1870,7 +2290,7 @@ td.num {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 0;
+  padding: 5px 0;
   border-top: 1px solid var(--bd);
   cursor: pointer;
   transition: .2s;
@@ -1905,14 +2325,20 @@ td.num {
   font-weight: 800;
 }
 
+/* Quick actions: one action per line */
 .qcol {
   display: grid;
+  grid-template-columns: 1fr;
+  grid-auto-rows: minmax(52px, 1fr);
   gap: 8px;
-  align-content: start;
 }
 
 .qcol .qbtn {
-  padding: 8px 12px;
+  padding: 8px 10px;
+  gap: 10px;
+  height: 100%;
+  min-width: 0;
+  border-radius: 16px;
 }
 
 .qcol .qbtn i {
@@ -1921,9 +2347,17 @@ td.num {
   border-radius: 11px;
 }
 
+.qcol .qbtn span {
+  min-width: 0;
+}
+
+.qcol .qbtn b {
+  line-height: 1.2;
+}
+
 .qcol .qbtn small {
-  font-size: 12px;
-  line-height: 1.3;
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .act {
@@ -1941,8 +2375,6 @@ td.num {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--gb2) transparent;
 }
 
 .act td {
@@ -1950,27 +2382,539 @@ td.num {
 }
 
 @media (max-width: 1180px) {
-  .g6 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
   .ovw {
-    height: auto;
-    min-height: 0;
     grid-template-rows: none;
   }
   .ovmid {
     grid-template-columns: 1fr;
   }
   .ovmid .card {
-    min-height: 280px;
+    height: 280px;
   }
   .act {
     max-height: 420px;
   }
 }
 
-@media (max-width: 640px) {
-  .g6 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+
+/* ============================================================
+   Page header (Back + title) and single-row toolbars
+   ============================================================ */
+
+.phead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+}
+
+.phead .back {
+  margin: 0;
+}
+
+.phead .phr {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.toolbar {
+  flex-wrap: nowrap;
+}
+
+.toolbar .search {
+  flex: 1 1 0;
+  min-width: 140px;
+  max-width: none;
+}
+
+.toolbar select,
+.toolbar .btn {
+  flex: none;
+}
+
+.toolbar .btn {
+  white-space: nowrap;
+}
+
+/* space between the page heading and the chat / notification container */
+.page.fit > .phead {
+  margin-bottom: 14px;
+}
+
+/* slightly smaller text inside lists and list-like containers */
+th {
+  font-size: 10.5px;
+}
+
+.pill {
+  font-size: 10.5px;
+  padding: 3px 10px;
+}
+
+.kc {
+  font-size: 13px;
+}
+
+.kc small,
+.m small,
+.prow small {
+  font-size: 11px;
+}
+
+.m,
+.chl button,
+.notif,
+.prow,
+.prr {
+  font-size: 13px;
+}
+
+.inp input[type=text] {
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .toolbar {
+    flex-wrap: wrap;
   }
+}
+
+
+/* ============================================================
+   Sign in page: premium animated background
+   ============================================================ */
+
+.auth .bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* soft blurred colour orbs that drift slowly */
+.auth .orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: .75;
+  animation: drift 18s ease-in-out infinite alternate;
+}
+
+.auth .o1 {
+  width: 520px;
+  height: 520px;
+  left: -140px;
+  top: -120px;
+  background: radial-gradient(circle, #e9f4fb, rgba(233, 244, 251, 0) 70%);
+}
+
+.auth .o2 {
+  width: 620px;
+  height: 620px;
+  right: 8%;
+  bottom: -220px;
+  background: radial-gradient(circle, #6fa9cf, rgba(111, 169, 207, 0) 70%);
+  animation-duration: 22s;
+  animation-delay: -6s;
+}
+
+.auth .o3 {
+  width: 380px;
+  height: 380px;
+  left: 38%;
+  top: 8%;
+  background: radial-gradient(circle, #ffffff, rgba(255, 255, 255, 0) 70%);
+  opacity: .55;
+  animation-duration: 26s;
+  animation-delay: -11s;
+}
+
+/* glass curves in the corners */
+.auth .curve {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .55);
+  background: linear-gradient(145deg, rgba(255, 255, 255, .38), rgba(255, 255, 255, .02) 65%);
+  box-shadow: inset 0 0 60px rgba(255, 255, 255, .18);
+  animation: bob 14s ease-in-out infinite alternate;
+}
+
+.auth .c1 {
+  width: 520px;
+  height: 520px;
+  left: -230px;
+  bottom: -230px;
+}
+
+.auth .c2 {
+  width: 340px;
+  height: 340px;
+  left: -120px;
+  bottom: -120px;
+  animation-duration: 18s;
+  animation-delay: -4s;
+}
+
+.auth .c3 {
+  width: 640px;
+  height: 640px;
+  right: -260px;
+  top: -280px;
+  animation-duration: 20s;
+  animation-delay: -8s;
+}
+
+.auth .c4 {
+  width: 400px;
+  height: 400px;
+  right: -140px;
+  top: -150px;
+  animation-duration: 16s;
+  animation-delay: -2s;
+}
+
+/* dotted grid that lights up around the cursor */
+.auth .grid-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(23, 50, 74, .28) 1.2px, transparent 1.6px);
+  background-size: 30px 30px;
+  -webkit-mask-image: radial-gradient(circle 260px at var(--mx) var(--my), #000, transparent 100%);
+  mask-image: radial-gradient(circle 260px at var(--mx) var(--my), #000, transparent 100%);
+}
+
+/* soft spotlight that follows the cursor */
+.auth .glow {
+  position: absolute;
+  width: 560px;
+  height: 560px;
+  left: var(--mx);
+  top: var(--my);
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0) 62%);
+  transition: left .35s ease-out, top .35s ease-out;
+}
+
+@keyframes drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(60px, 40px) scale(1.12);
+  }
+}
+
+@keyframes bob {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate(18px, -22px) rotate(6deg);
+  }
+}
+
+/* ============================================================
+   Spacing: more room below metric cards (every page)
+   ============================================================ */
+
+.mtr {
+  margin-bottom: 10px;
+}
+
+/* ============================================================
+   Scrollbars: one slim style everywhere, inset from the edge
+   ============================================================ */
+
+*::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-track:vertical {
+  margin: 14px 0;
+}
+
+*::-webkit-scrollbar-track:horizontal {
+  margin: 0 14px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(127, 178, 210, .7);
+  background-clip: padding-box;
+  border: 4px solid transparent;
+  border-right-width: 6px;
+  border-radius: 99px;
+  min-height: 40px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--gb2);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* lists with a sticky header: start the scrollbar under the header */
+.tbl::-webkit-scrollbar-track:vertical {
+  margin-top: 46px;
+}
+
+.actscr::-webkit-scrollbar-track:vertical {
+  margin-top: 42px;
+}
+
+.li::-webkit-scrollbar-track:vertical {
+  margin-top: 38px;
+  margin-bottom: 8px;
+}
+
+/* Firefox */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gb2) transparent;
+  }
+}
+
+
+.pav img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ============================================================
+   Profile page
+   ============================================================ */
+
+.grid.fit > .profwrap {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.profwrap {
+  display: flex;
+  overflow: auto;
+}
+
+.pcard {
+  position: relative;
+  margin: auto;
+  width: min(560px, 100%);
+  padding: 0;
+  overflow: hidden;
+  border-radius: 28px;
+  box-shadow: 0 2px 4px rgba(23, 50, 74, .05), 0 34px 70px -34px rgba(23, 50, 74, .45);
+}
+
+.pbanner {
+  position: relative;
+  height: 124px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #b9daed, #9CC6E0 48%, #6fa9cf);
+}
+
+.pbanner::before,
+.pbanner::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .5);
+  background: linear-gradient(145deg, rgba(255, 255, 255, .4), rgba(255, 255, 255, 0) 70%);
+}
+
+.pbanner::before {
+  width: 260px;
+  height: 260px;
+  right: -70px;
+  top: -130px;
+}
+
+.pbanner::after {
+  width: 200px;
+  height: 200px;
+  left: -60px;
+  bottom: -120px;
+}
+
+.pavwrap {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  margin: -66px auto 0;
+}
+
+.pavbig {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  color: var(--navy);
+  background: linear-gradient(145deg, #d6e9f5, #9CC6E0);
+  border: 5px solid var(--pw2);
+  box-shadow: 0 20px 38px -16px rgba(23, 50, 74, .6);
+}
+
+.pavbig img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avedit {
+  position: absolute;
+  right: 2px;
+  bottom: 6px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #fff;
+  background: var(--navy);
+  border: 3px solid var(--pw2);
+  box-shadow: 0 10px 18px -8px rgba(23, 50, 74, .7);
+  transition: .2s;
+}
+
+.avedit:hover {
+  background: var(--gbd);
+  transform: scale(1.1);
+}
+
+.pflist {
+  padding: 18px 32px 28px;
+}
+
+.pfrow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--bd);
+}
+
+.pfrow:first-child {
+  border-top: 0;
+}
+
+.pfrow .ic {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+}
+
+.pfrow > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.pfl {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--mu);
+  margin-bottom: 2px;
+}
+
+.pfv {
+  display: block;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.pfv.dots {
+  letter-spacing: .22em;
+  line-height: 1.5;
+}
+
+.pfrow .eye {
+  position: static;
+  transform: none;
+  flex: none;
+}
+
+@media (max-height: 800px) {
+  .pbanner {
+    height: 96px;
+  }
+  .pavwrap {
+    width: 112px;
+    height: 112px;
+    margin-top: -56px;
+  }
+  .pavbig {
+    font-size: 34px;
+  }
+  .pflist {
+    padding: 10px 28px 18px;
+  }
+  .pfrow {
+    padding: 10px 0;
+  }
+}
+
+
+.pedit {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--navy);
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid rgba(255, 255, 255, .8);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 20px -12px rgba(23, 50, 74, .6);
+  transition: .2s;
+}
+
+.pedit:hover {
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.pfrow input:not([type=checkbox]):not([type=file]) {
+  padding: 8px 12px;
+  font-size: 14.5px;
+  border-radius: 10px;
+}
+
+.pacts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
 }

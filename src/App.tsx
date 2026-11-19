@@ -2,7 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  AtSign,
   Bell,
+  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -13,10 +15,14 @@ import {
   FolderKanban,
   LayoutDashboard,
   ListTodo,
+  Lock,
+  LogOut,
+  Mail,
   MessageCircle,
   MessagesSquare,
   Mic,
   Paperclip,
+  Pencil,
   Phone,
   Play,
   Plus,
@@ -37,8 +43,8 @@ import "./style.css";
 // ============================================================
 
 const WS = {
-  lead: "Team & task management",
-  employee: "Task management",
+  tt: "Team & task management",
+  tm: "Task management",
 };
 
 // ============================================================
@@ -74,6 +80,12 @@ const LIB = {
   EyeOff,
   ChevronLeft,
   ChevronRight,
+  AtSign,
+  Camera,
+  Lock,
+  LogOut,
+  Mail,
+  Pencil,
 };
 
 function Icon({ n, s = 20 }) {
@@ -82,14 +94,16 @@ function Icon({ n, s = 20 }) {
 }
 
 const WSD = {
-  lead: "Lead your teams, assign tasks and report progress to the Super Admin.",
-  employee: "View assigned projects and tasks, track time and complete your work.",
+  tt: "Manage your teams, assign tasks, complete reviewed tasks and report to the Super Admin.",
+  tm: "View assigned projects and tasks, track time and submit work for review.",
 };
 
-const WSI = { lead: "UsersRound", employee: "User" };
+const WSI = { tt: "UsersRound", tm: "User" };
 
-// There is no "Review" status in these workspaces
-const ST = ["To Do", "In Progress", "Stopped", "Completed"];
+const ST = ["To Do", "In Progress", "Stopped", "Reassigned", "Review", "Completed"];
+
+// "To Do" and "Reassigned" tasks have not been worked on yet
+const FRESH = ["To Do", "Reassigned"];
 
 const now = () => new Date().toLocaleString([], { dateStyle: "short", timeStyle: "short" });
 
@@ -104,8 +118,27 @@ const fmt = (s) => {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 };
 
-// Fresh task: status "To Do" and timer 0 (every task starts from scratch)
-const T = (id, title, desc, project, assignee, by, priority, due, items) =>
+// Accounts created through Sign Up are stored in localStorage (demo only)
+const readAccs = () => {
+  try {
+    return JSON.parse(localStorage.getItem("wf_acc") || "[]");
+  } catch (x) {
+    return [];
+  }
+};
+
+// Demo login details (also shown on the profile page)
+const DEMO = {
+  name: "ABC",
+  email: "abc@gmail.com",
+  phone: "+91 98765 43210",
+  user: "abc",
+  pw: "123456",
+  ws: ["tt", "tm"],
+};
+
+// Task helper. "o" = optional demo state: { status, secs, done (checklist items ticked), log: [[time, text]] }
+const T = (id, title, desc, project, assignee, by, priority, due, items, o = {}) =>
   (
     {
       id,
@@ -115,23 +148,27 @@ const T = (id, title, desc, project, assignee, by, priority, due, items) =>
       by,
       priority,
       due,
-      status: "To Do",
+      status: o.status || "To Do",
       desc,
-      secs: 0,
-      log: [{ t: "17/11/2026", txt: "Task assigned by " + by }],
+      secs: o.secs || 0,
+      log: [
+        { t: "12/11/26, 09:00", txt: "Task assigned by " + by },
+        ...(o.log || []).map(([t, txt]) => ({ t, txt })),
+      ],
       reports: [],
-      checklist: items.map((t) => ({ t, done: false })),
+      checklist: items.map((t, i) => ({ t, done: i < (o.done || 0) })),
     }
   );
 
 // Projects are created by the Super Admin (separate web page).
-// "members" does NOT include the team lead, the lead is the "lead" field.
+// "members" does NOT include the project lead (see the "lead" field).
 const seed = {
   user: null,
   ws: null,
-  timer: null,
-  stopped: null,
+  // demo: TASK-1101 (Task management) is running
+  timer: { id: "TASK-1101", start: Date.now() },
   projects: [
+    // ---- Projects of Team & task management ----
     {
       id: "P-1",
       name: "Billing Platform",
@@ -151,6 +188,16 @@ const seed = {
       due: "2026-12-05",
     },
     {
+      id: "P-5",
+      name: "Customer Portal",
+      desc: "Self-service portal for invoices and support.",
+      lead: "ABC",
+      team: "Gamma Web Team",
+      members: ["Chloe Bennett", "Alex Morgan"],
+      due: "2026-11-15",
+    },
+    // ---- Projects of Task management ----
+    {
       id: "P-3",
       name: "HR Management",
       desc: "Leave, timesheets and payroll audit.",
@@ -168,9 +215,18 @@ const seed = {
       members: ["ABC", "Karan Mehta", "Alex Morgan"],
       due: "2027-01-25",
     },
+    {
+      id: "P-6",
+      name: "Support Desk",
+      desc: "Ticketing, SLA tracking and customer feedback.",
+      lead: "Neha Gupta",
+      team: "Care & Support",
+      members: ["ABC", "Chloe Bennett"],
+      due: "2026-11-10",
+    },
   ],
   tasks: [
-    // Assigned by ABC (Team & task management workspace)
+    // ============ Team & task management tasks (assigned by ABC) ============
     T(
       "TASK-1001",
       "Implement invoice export endpoint",
@@ -181,10 +237,86 @@ const seed = {
       "High",
       "2026-11-25",
       ["Design endpoint contract", "Implement CSV export", "Implement PDF export", "Write unit tests"],
+      {
+        status: "In Progress",
+        secs: 4320,
+        done: 2,
+        log: [
+          ["15/11/26, 10:00", "Timer started"],
+          ["15/11/26, 11:12", "Timer stopped, 01:12:00 logged"],
+          ["15/11/26, 11:13", "Work update: Endpoint contract finalised and CSV export implemented."],
+          ["16/11/26, 09:40", "Timer resumed"],
+        ],
+      },
     ),
     T(
       "TASK-1002",
-      "Design push notification triggers",
+      "Configure multi-currency billing",
+      "Add multi-currency support with cached exchange rates.",
+      "Billing Platform",
+      "Sneha Rao",
+      "ABC",
+      "High",
+      "2026-11-20",
+      ["Integrate exchange rate API", "Cache rates", "Add currency selector"],
+      {
+        status: "Review",
+        secs: 7200,
+        done: 3,
+        log: [
+          ["14/11/26, 10:00", "Timer started"],
+          ["14/11/26, 12:00", "Timer stopped, 02:00:00 logged"],
+          ["14/11/26, 12:01", "Work update: Currency rates service wired and cached."],
+          ["17/11/26, 15:30", "Marked for review by Sneha Rao"],
+        ],
+      },
+    ),
+    T(
+      "TASK-1003",
+      "OAuth2 Google login",
+      "Implement Google OAuth2 sign-in for the billing dashboard.",
+      "Billing Platform",
+      "Alex Morgan",
+      "ABC",
+      "High",
+      "2026-11-10",
+      ["Register OAuth client", "Implement callback", "Test on staging"],
+      {
+        status: "Completed",
+        secs: 4500,
+        done: 3,
+        log: [
+          ["12/11/26, 09:30", "Timer started"],
+          ["12/11/26, 10:45", "Timer stopped, 01:15:00 logged"],
+          ["12/11/26, 10:46", "Completed: Google OAuth2 login implemented and tested on staging."],
+          ["13/11/26, 10:00", "Marked complete by ABC"],
+        ],
+      },
+    ),
+    T(
+      "TASK-1004",
+      "Build tax rule engine",
+      "Create a configurable tax rule engine for regional tax slabs.",
+      "Billing Platform",
+      "Rahul Varma",
+      "ABC",
+      "Medium",
+      "2026-11-30",
+      ["Draft tax schema", "Implement rule evaluator", "Add admin config"],
+      {
+        status: "Stopped",
+        secs: 1800,
+        done: 1,
+        log: [
+          ["16/11/26, 14:00", "Timer started"],
+          ["16/11/26, 14:30", "Timer stopped, 00:30:00 logged"],
+          ["16/11/26, 14:31", "Work update: Tax slabs schema drafted, waiting on the rate table."],
+        ],
+      },
+    ),
+    T(
+      "TASK-1005",
+      "Push notification triggers",
       "Define and implement the push notification triggers for approvals.",
       "Mobile App",
       "Priya Sharma",
@@ -193,9 +325,67 @@ const seed = {
       "2026-11-28",
       ["List trigger events", "Configure FCM / APNs", "Test on TestFlight"],
     ),
-    // Assigned to ABC (Task management workspace)
     T(
-      "TASK-1003",
+      "TASK-1006",
+      "Approval screen UI",
+      "Design and build the approval request screen for the mobile app.",
+      "Mobile App",
+      "Karan Mehta",
+      "ABC",
+      "Medium",
+      "2026-11-29",
+      ["Create screen layout", "Add approve / reject actions"],
+      {
+        status: "Reassigned",
+        log: [["16/11/26, 11:00", "Reassigned from Divya Iyer to Karan Mehta"]],
+      },
+    ),
+    T(
+      "TASK-1007",
+      "Portal login page",
+      "Build the customer portal login and password reset pages.",
+      "Customer Portal",
+      "Chloe Bennett",
+      "ABC",
+      "Low",
+      "2026-10-28",
+      ["Build login form", "Add password reset"],
+      {
+        status: "Completed",
+        secs: 3600,
+        done: 2,
+        log: [
+          ["25/10/26, 10:00", "Timer started"],
+          ["25/10/26, 11:00", "Timer stopped, 01:00:00 logged"],
+          ["25/10/26, 11:01", "Completed: Login and reset pages delivered."],
+        ],
+      },
+    ),
+    T(
+      "TASK-1008",
+      "Invoice history page",
+      "Show the customer invoice history with download links.",
+      "Customer Portal",
+      "Alex Morgan",
+      "ABC",
+      "Medium",
+      "2026-11-02",
+      ["Build invoice table", "Add PDF download"],
+      {
+        status: "Completed",
+        secs: 5400,
+        done: 2,
+        log: [
+          ["30/10/26, 09:30", "Timer started"],
+          ["30/10/26, 11:00", "Timer stopped, 01:30:00 logged"],
+          ["30/10/26, 11:01", "Completed: Invoice history page released."],
+        ],
+      },
+    ),
+
+    // ============ Task management tasks (assigned to ABC) ============
+    T(
+      "TASK-1101",
       "Build onboarding checklist wizard",
       "Create the step-by-step onboarding checklist wizard for new joiners.",
       "HR Management",
@@ -204,9 +394,63 @@ const seed = {
       "High",
       "2026-11-24",
       ["Create wizard layout", "Add step validation", "Connect checklist data"],
+      {
+        status: "In Progress",
+        secs: 1260,
+        done: 1,
+        log: [
+          ["17/11/26, 10:30", "Timer started"],
+          ["17/11/26, 10:51", "Timer stopped, 00:21:00 logged"],
+          ["17/11/26, 10:52", "Work update: Wizard layout created."],
+          ["18/11/26, 09:10", "Timer resumed"],
+        ],
+      },
     ),
     T(
-      "TASK-1004",
+      "TASK-1102",
+      "Leave balance report",
+      "Generate the monthly leave balance report for all members.",
+      "HR Management",
+      "ABC",
+      "Maya Chen",
+      "Medium",
+      "2026-11-26",
+      ["Query leave data", "Build report table", "Add export"],
+      {
+        status: "Stopped",
+        secs: 2100,
+        done: 1,
+        log: [
+          ["16/11/26, 14:00", "Timer started"],
+          ["16/11/26, 14:35", "Timer stopped, 00:35:00 logged"],
+          ["16/11/26, 14:36", "Work update: Leave data query completed, report table pending."],
+        ],
+      },
+    ),
+    T(
+      "TASK-1103",
+      "Payroll audit export",
+      "Export the payroll audit trail for the finance team.",
+      "HR Management",
+      "ABC",
+      "Maya Chen",
+      "High",
+      "2026-11-20",
+      ["Collect payroll records", "Format audit sheet", "Verify totals"],
+      {
+        status: "Review",
+        secs: 3600,
+        done: 3,
+        log: [
+          ["15/11/26, 10:00", "Timer started"],
+          ["15/11/26, 11:00", "Timer stopped, 01:00:00 logged"],
+          ["15/11/26, 11:01", "Work update: Payroll records collected and formatted."],
+          ["17/11/26, 17:00", "Marked for review by ABC"],
+        ],
+      },
+    ),
+    T(
+      "TASK-1104",
       "Create ARR cohort chart",
       "Add the ARR cohort retention chart to the executive dashboard.",
       "Analytics Dashboard",
@@ -216,49 +460,117 @@ const seed = {
       "2026-11-27",
       ["Prepare cohort data", "Build chart component", "Add tooltips and legend"],
     ),
+    T(
+      "TASK-1105",
+      "Funnel conversion widget",
+      "Build the funnel conversion widget for the analytics dashboard.",
+      "Analytics Dashboard",
+      "ABC",
+      "Arun Patel",
+      "Low",
+      "2026-12-02",
+      ["Define funnel steps", "Build widget"],
+      {
+        status: "Reassigned",
+        log: [["17/11/26, 16:00", "Reassigned from Karan Mehta to ABC"]],
+      },
+    ),
+    T(
+      "TASK-1106",
+      "Ticket SLA dashboard",
+      "Create the SLA tracking dashboard for support tickets.",
+      "Support Desk",
+      "ABC",
+      "Neha Gupta",
+      "High",
+      "2026-11-05",
+      ["Collect SLA rules", "Build dashboard", "Add alerts"],
+      {
+        status: "Completed",
+        secs: 4800,
+        done: 3,
+        log: [
+          ["03/11/26, 10:00", "Timer started"],
+          ["03/11/26, 11:20", "Timer stopped, 01:20:00 logged"],
+          ["03/11/26, 11:21", "Completed: SLA dashboard delivered with breach alerts."],
+        ],
+      },
+    ),
+    T(
+      "TASK-1107",
+      "Customer feedback form",
+      "Build the post-resolution customer feedback form.",
+      "Support Desk",
+      "Chloe Bennett",
+      "Neha Gupta",
+      "Low",
+      "2026-11-04",
+      ["Design form", "Connect to tickets"],
+      {
+        status: "Completed",
+        secs: 2400,
+        done: 2,
+        log: [
+          ["02/11/26, 10:00", "Timer started"],
+          ["02/11/26, 10:40", "Timer stopped, 00:40:00 logged"],
+          ["02/11/26, 10:41", "Completed: Feedback form is live."],
+        ],
+      },
+    ),
   ],
   msgs: {
     "#alpha-engineering": [{ u: "Sneha Rao", x: "Currency cache is live on staging.", t: "09:40" }],
     "#beta-mobile-squad": [{ u: "Priya Sharma", x: "Test builds are on TestFlight.", t: "10:05" }],
+    "#gamma-web-team": [{ u: "Chloe Bennett", x: "Portal is released to production.", t: "11:20" }],
     "#core-hr-ops": [{ u: "Maya Chen", x: "Please check the onboarding task today.", t: "09:15" }],
     "#analytics-design": [{ u: "Arun Patel", x: "Cohort data is ready for the chart.", t: "09:55" }],
-    "Rahul Varma": [{ u: "Rahul Varma", x: "Export endpoint work is ready to start.", t: "09:45" }],
-    "Maya Chen": [{ u: "Maya Chen", x: "Hi, your task is assigned.", t: "09:10" }],
+    "#care-support": [{ u: "Neha Gupta", x: "Great work on the SLA dashboard.", t: "12:10" }],
+    "Rahul Varma": [{ u: "Rahul Varma", x: "Export endpoint work is in progress.", t: "09:45" }],
+    "Maya Chen": [{ u: "Maya Chen", x: "Hi, please send the payroll audit for review.", t: "09:10" }],
   },
   notifs: [
     {
       id: 1,
-      ws: "lead",
+      ws: "tt",
+      txt: "Sneha Rao marked TASK-1002 for review",
+      cat: "Task Review",
+      task: "TASK-1002",
+      un: true,
+      t: "10m ago",
+    },
+    {
+      id: 2,
+      ws: "tt",
       txt: "Project Billing Platform assigned to you by Super Admin",
       cat: "Project Updates",
       un: true,
       t: "1h ago",
     },
     {
-      id: 2,
-      ws: "lead",
+      id: 3,
+      ws: "tt",
       txt: "Project Mobile App assigned to you by Super Admin",
       cat: "Project Updates",
       un: false,
       t: "Yesterday",
     },
     {
-      id: 3,
-      ws: "employee",
-      txt: "Task TASK-1003 assigned to you by Maya Chen",
-      cat: "Task Assigned",
-      task: "TASK-1003",
-      un: true,
-      t: "10m ago",
-    },
-    {
       id: 4,
-      ws: "employee",
-      txt: "Task TASK-1004 assigned to you by Arun Patel",
+      ws: "tm",
+      txt: "Task TASK-1104 assigned to you by Arun Patel",
       cat: "Task Assigned",
-      task: "TASK-1004",
+      task: "TASK-1104",
       un: true,
       t: "30m ago",
+    },
+    {
+      id: 5,
+      ws: "tm",
+      txt: "Task TASK-1105 reassigned to you by Arun Patel",
+      cat: "Task Assigned",
+      task: "TASK-1105",
+      un: true,
+      t: "2h ago",
     },
   ],
 };
@@ -311,16 +623,10 @@ function Auth({ c }) {
     ws: [],
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-  const accs = () => {
-    try {
-      return JSON.parse(localStorage.getItem("wf_acc") || "[]");
-    } catch (x) {
-      return [];
-    }
-  };
+  const accs = readAccs;
   const login = (u) => {
-    const workspaces = (u.ws || []).filter((w) => w === "lead" || w === "employee");
-    const account = { ...u, ws: workspaces.length ? workspaces : ["lead"] };
+    const workspaces = (u.ws || []).filter((w) => w === "tt" || w === "tm");
+    const account = { ...u, ws: workspaces.length ? workspaces : ["tt"] };
     c.up((d) => {
       d.user = account;
       d.ws = account.ws[0];
@@ -343,11 +649,7 @@ function Auth({ c }) {
     e.preventDefault();
     const id = f.id.trim().toLowerCase();
     if (id === "abc@gmail.com" && f.pw === "123456") {
-      return login({
-        name: "ABC",
-        email: "abc@gmail.com",
-        ws: ["lead", "employee"],
-      });
+      return login({ ...DEMO });
     }
     const a = accs().find((x) =>
       (x.email.toLowerCase() === id || x.user.toLowerCase() === id) && x.pw === f.pw);
@@ -391,7 +693,7 @@ function Auth({ c }) {
       email: f.email,
       user: f.user.trim(),
       pw: f.pw1,
-      ws: ["lead", "employee"].filter((w) => f.ws.includes(w)),
+      ws: ["tt", "tm"].filter((w) => f.ws.includes(w)),
     };
     try {
       localStorage.setItem("wf_acc", JSON.stringify([...accs(), u]));
@@ -399,8 +701,27 @@ function Auth({ c }) {
     login(u);
   };
 
+  // The spotlight and dotted grid in the background follow the cursor
+  const onMove = (e) => {
+    const el = e.currentTarget,
+      r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", e.clientX - r.left + "px");
+    el.style.setProperty("--my", e.clientY - r.top + "px");
+  };
+
   return (
-    <div className="auth">
+    <div className="auth" onMouseMove={onMove}>
+      <div className="bg" aria-hidden="true">
+        <i className="orb o1" />
+        <i className="orb o2" />
+        <i className="orb o3" />
+        <i className="curve c1" />
+        <i className="curve c2" />
+        <i className="curve c3" />
+        <i className="curve c4" />
+        <i className="grid-dots" />
+        <i className="glow" />
+      </div>
       <div className="hero">
         <div className="logo" style={{ marginBottom: 10 }}>W.</div>
         <b style={{ letterSpacing: ".12em", fontSize: 12 }}>WORK FLOW PLATFORM</b>
@@ -578,7 +899,7 @@ function Auth({ c }) {
                 <span className="mu">
                   Select one or more. You can switch anytime from your profile.
                 </span>
-                {["lead", "employee"].map((w) => {
+                {["tt", "tm"].map((w) => {
                   const on = f.ws.includes(w);
 
                   return (
@@ -740,8 +1061,218 @@ function ToastHost() {
   return msg ? <div className="toast">{msg}</div> : null;
 }
 
+// Profile page: round photo with an edit button, then the account details (editable)
+function Profile({ c }) {
+  const u = c.u;
+  const [show, setShow] = useState(false),
+    [edit, setEdit] = useState(false),
+    [err, setErr] = useState(""),
+    [f, setF] = useState({ name: "", phone: "", email: "", user: "", pw: "" });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  const pick = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      c.toast("Please choose an image file");
+      return;
+    }
+    const rd = new FileReader();
+    rd.onload = () => {
+      c.up((d) => {
+        d.user.photo = rd.result;
+      });
+      c.toast("Profile photo updated");
+    };
+    rd.readAsDataURL(file);
+  };
+
+  const start = () => {
+    setF({
+      name: u.name || "",
+      phone: u.phone || "",
+      email: u.email || "",
+      user: u.user || "",
+      pw: u.pw || "",
+    });
+    setErr("");
+    setShow(false);
+    setEdit(true);
+  };
+
+  const save = (e) => {
+    e.preventDefault();
+    const name = f.name.trim(),
+      phone = f.phone.trim(),
+      email = f.email.trim(),
+      user = f.user.trim();
+    if (!name) {
+      return setErr("Enter your name.");
+    }
+    if (!phone) {
+      return setErr("Enter your phone number.");
+    }
+    if (!email) {
+      return setErr("Enter your email.");
+    }
+    if (user.length < 3) {
+      return setErr("Username must be at least 3 characters.");
+    }
+    if (f.pw.length < 6) {
+      return setErr("Password must be at least 6 characters.");
+    }
+    const accs = readAccs();
+    const isDemo = u.email === DEMO.email;
+    if (accs.some((x) => x.email !== u.email && (x.user === user || x.email === email))) {
+      return setErr("That username or email is already registered.");
+    }
+    if (!isDemo && (email.toLowerCase() === DEMO.email || user.toLowerCase() === DEMO.user)) {
+      return setErr("That username or email is already registered.");
+    }
+    const next = { name, phone, email, user, pw: f.pw };
+    try {
+      localStorage.setItem(
+        "wf_acc",
+        JSON.stringify(accs.map((x) => x.email === u.email ? { ...x, ...next } : x)),
+      );
+    } catch (x) {}
+    const old = u.name;
+    c.up((d) => {
+      // keep every project, task and chat linked to this person when the name changes
+      if (name !== old) {
+        d.projects.forEach((p) => {
+          if (p.lead === old) {
+            p.lead = name;
+          }
+          p.members = p.members.map((m) => m === old ? name : m);
+        });
+        d.tasks.forEach((t) => {
+          if (t.assignee === old) {
+            t.assignee = name;
+          }
+          if (t.by === old) {
+            t.by = name;
+          }
+        });
+        Object.keys(d.msgs).forEach((k) => {
+          d.msgs[k].forEach((m) => {
+            if (m.u === old) {
+              m.u = name;
+            }
+          });
+        });
+      }
+      d.user = { ...d.user, ...next };
+    });
+    setEdit(false);
+    setShow(false);
+    c.toast("Profile updated");
+  };
+
+  const rows = [
+    ["User", "Name", "name", "text", "Your full name"],
+    ["Phone", "Phone number", "phone", "tel", "Phone number"],
+    ["Mail", "Email", "email", "email", "name@example.com"],
+    ["AtSign", "Username", "user", "text", "Username"],
+  ];
+  const pw = u.pw || "";
+
+  return (
+    <div className="profwrap">
+      <div className="card pcard">
+        <div className="pbanner" />
+        {!edit && (
+          <button type="button" className="pedit" onClick={start}>
+            <Icon n="Pencil" s={16} />
+            Edit profile
+          </button>
+        )}
+        <div className="pavwrap">
+          <div className="pavbig">
+            {u.photo ? <img src={u.photo} alt="" /> : <span>{ini(u.name)}</span>}
+          </div>
+          <label className="avedit" title="Edit profile photo">
+            <Icon n="Camera" s={18} />
+            <input type="file" accept="image/*" hidden onChange={pick} />
+          </label>
+        </div>
+        <form className="pflist" onSubmit={save}>
+          {rows.map(([ic, k, key, type, ph]) => (
+            <div key={key} className="pfrow">
+              <i className="ic"><Icon n={ic} s={20} /></i>
+              <div>
+                <span className="pfl">{k}</span>
+                {edit
+                  ? (
+                    <input
+                      type={type}
+                      placeholder={ph}
+                      value={f[key]}
+                      onChange={set(key)}
+                    />
+                  )
+                  : <span className="pfv">{u[key] || "—"}</span>}
+              </div>
+            </div>
+          ))}
+          <div className="pfrow">
+            <i className="ic"><Icon n="Lock" s={20} /></i>
+            <div>
+              <span className="pfl">Password</span>
+              {edit
+                ? (
+                  <input
+                    type={show ? "text" : "password"}
+                    placeholder="At least 6 characters"
+                    value={f.pw}
+                    onChange={set("pw")}
+                  />
+                )
+                : (
+                  <span className={"pfv" + (show ? "" : " dots")}>
+                    {show ? (pw || "—") : "•".repeat(Math.max(pw.length, 8))}
+                  </span>
+                )}
+            </div>
+            <button
+              type="button"
+              className="eye"
+              aria-label={show ? "Hide password" : "Show password"}
+              onClick={() => setShow(!show)}
+            >
+              <Icon n={show ? "EyeOff" : "Eye"} s={18} />
+            </button>
+          </div>
+          {edit && (
+            <>
+              {err && <div className="err" style={{ marginTop: 6 }}>{err}</div>}
+              <div className="pacts">
+                <button
+                  type="button"
+                  className="btn sec"
+                  onClick={() => {
+                    setEdit(false);
+                    setShow(false);
+                    setErr("");
+                  }}
+                >
+                  Cancel
+                </button>
+                <button className="btn">Save changes</button>
+              </div>
+            </>
+          )}
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function App() {
-  // State lives in memory only (no localStorage), so a page reload starts from scratch.
+  // State lives in memory only (no localStorage), so a page reload starts from the demo data again.
   const [s, setS] = useState(seed);
   const [route, setRoute] = useState({ p: "overview" }),
     [hist, setHist] = useState([]),
@@ -816,11 +1347,11 @@ function App() {
   }
   const u = s.user,
     ws = s.ws,
-    L = ws === "lead",
-    E = ws === "employee";
-  const projects = s.projects.filter((p) => (L ? p.lead === u.name : p.members.includes(u.name)));
+    TT = ws === "tt",
+    TM = ws === "tm";
+  const projects = s.projects.filter((p) => (TT ? p.lead === u.name : p.members.includes(u.name)));
   const pn = projects.map((p) => p.name);
-  const tasks = s.tasks.filter((t) => (L ? pn.includes(t.project) : t.assignee === u.name));
+  const tasks = s.tasks.filter((t) => (TT ? pn.includes(t.project) : t.assignee === u.name));
   const secs = (t) =>
     t.secs + (s.timer && s.timer.id === t.id ? (Date.now() - s.timer.start) / 1000 : 0);
   const prog = (p) => {
@@ -834,7 +1365,7 @@ function App() {
     if (ts.length && ts.every((x) => x.status === "Completed")) {
       return "Completed";
     }
-    if (ts.some((x) => x.status !== "To Do")) {
+    if (ts.some((x) => !FRESH.includes(x.status))) {
       return "In Progress";
     }
     return "Pending";
@@ -850,15 +1381,15 @@ function App() {
     setToast("Switched to " + WS[w]);
   };
 
-  // Stop the running timer: task becomes "Stopped" and waits for the work description
-  const stopTimer = (d) => {
+  // ---- Timer workflow helpers ----
+  // Stop the running timer (at = the moment the button was clicked). Task becomes "Stopped".
+  const stopTimer = (d, at) => {
     if (d.timer) {
       const t = d.tasks.find((x) => x.id === d.timer.id);
-      const el = Math.floor((Date.now() - d.timer.start) / 1000);
+      const el = Math.floor(((at || Date.now()) - d.timer.start) / 1000);
       t.secs += el;
       t.status = "Stopped";
       log(d, t.id, "Timer stopped, " + fmt(el) + " logged");
-      d.stopped = t.id;
       d.timer = null;
     }
   };
@@ -870,8 +1401,30 @@ function App() {
       log(d, t.id, k.secs > 0 ? "Timer resumed" : "Timer started");
       k.status = "In Progress";
       d.timer = { id: t.id, start: Date.now() };
-      d.stopped = null;
     });
+
+  // In Progress / Stopped -> Review (no description needed)
+  const markReview = (t) => {
+    up((d) => {
+      if (d.timer && d.timer.id === t.id) {
+        stopTimer(d);
+      }
+      d.tasks.find((x) => x.id === t.id).status = "Review";
+      log(d, t.id, "Marked for review by " + u.name);
+    });
+    setToast("Marked for review");
+  };
+
+  // Review -> Completed
+  const completeReviewed = (t) => {
+    up((d) => {
+      const k = d.tasks.find((x) => x.id === t.id);
+      k.status = "Completed";
+      k.completedAt = now();
+      log(d, t.id, "Marked complete by " + u.name);
+    });
+    setToast("Task marked as completed");
+  };
 
   const nav = [
     ["overview", "LayoutDashboard", "Overview"],
@@ -882,6 +1435,18 @@ function App() {
     ["dm", "MessageCircle", "Direct Message"],
     ["notif", "Bell", "Notification"],
   ];
+
+  const titles = {
+    project: "Projects",
+    projd: "Project Details",
+    team: "Teams",
+    task: "Tasks",
+    taskd: "Task Details",
+    chat: "Team Chat",
+    dm: "Direct Message",
+    notif: "Notifications",
+    profile: "Profile",
+  };
 
   const myNotifs = s.notifs.filter((n) => n.ws === ws);
   const unread = myNotifs.filter((n) => n.un).length;
@@ -899,6 +1464,19 @@ function App() {
     const p = s.projects.find((x) => x.name === pj);
     return p ? p.members : [];
   };
+
+  const statCards = (list, cls) => (
+    <div className={"lo-stats " + (cls || "")}>
+      {list.map(([a, b, i]) => (
+        <div key={a} className="card stat">
+          <i className="ic"><Icon n={i} s={20} /></i>
+          <div><span>{a}</span><b>{b}</b></div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // ============ Modals ============
 
   const Assign = () => {
     const [f, setF] = useState({
@@ -933,7 +1511,7 @@ function App() {
                   return;
                 }
                 const id = "TASK-" +
-                  (Math.max(1004, ...s.tasks.map((x) => parseInt(x.id.slice(5)) || 0)) + 1);
+                  (Math.max(1107, ...s.tasks.map((x) => parseInt(x.id.slice(5)) || 0)) + 1);
                 up((d) => {
                   d.tasks.unshift(
                     T(id, f.title, f.desc || "Assigned task.", f.project, as, u.name, f.priority, f.due, f.items),
@@ -1038,7 +1616,7 @@ function App() {
     );
   };
 
-  // Employee: reassign a task that has not been started yet
+  // Reassign a task that has not been started yet
   const Reassign = ({ t }) => {
     const [q, setQ] = useState("");
     const ms = mems(t.project).filter((m) =>
@@ -1066,7 +1644,7 @@ function App() {
                   up((d) => {
                     const k = d.tasks.find((x) => x.id === t.id);
                     k.assignee = m;
-                    k.status = "To Do";
+                    k.status = "Reassigned";
                     log(d, t.id, `Reassigned from ${t.assignee} to ${m}`);
                   });
 
@@ -1085,7 +1663,61 @@ function App() {
     );
   };
 
-  const TeamModal = ({ x }) => (
+  // Description pop-up for "Stop & Save" and "Mark Complete"
+  const NoteModal = ({ m }) => {
+    const [x, setX] = useState("");
+    const stop = m.kind === "stopsave";
+
+    return (
+      <Modal
+        title={(stop ? "Stop & Save · " : "Mark Complete · ") + m.t.id}
+        onClose={() => setModal(null)}
+      >
+        <form
+          className="grid"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!x.trim()) {
+              return;
+            }
+            up((d) => {
+              if (d.timer && d.timer.id === m.t.id) {
+                stopTimer(d, m.at);
+              }
+              const k = d.tasks.find((y) => y.id === m.t.id);
+              if (stop) {
+                log(d, k.id, "Work update: " + x.trim());
+              } else {
+                k.status = "Completed";
+                k.completedAt = now();
+                log(d, k.id, "Completed: " + x.trim());
+              }
+            });
+            setModal(null);
+            setToast(stop ? "Changes saved" : "Task completed");
+          }}
+        >
+          <div className="mu">{m.t.title}</div>
+          <label>
+            {stop ? "Work description" : "Completion description"}
+            <textarea
+              required
+              rows={4}
+              autoFocus
+              placeholder={stop
+                ? "Describe the work completed during this session..."
+                : "Describe the completed work and final outcome..."}
+              value={x}
+              onChange={(e) => setX(e.target.value)}
+            />
+          </label>
+          <button className="btn">{stop ? "Save Changes" : "Save & Complete"}</button>
+        </form>
+      </Modal>
+    );
+  };
+
+  const teamModal = (x) => (
     <Modal title={x.team + " · " + x.name} onClose={() => setModal(null)}>
       <div className="mu">Lead: {x.lead}</div>
       {[x.lead, ...x.members].map((m, i) => {
@@ -1099,14 +1731,14 @@ function App() {
               <span>
                 {m}
                 <br />
-                <small className="mu">{ct ? ct.title : i === 0 ? "Team Lead" : "No active task"}</small>
+                <small className="mu">{ct ? ct.title : i === 0 ? "Lead" : "No active task"}</small>
               </span>
             </span>
             <small className="mu">{["Online", "Away", "Offline"][(i + m.length) % 3]}</small>
           </div>
         );
       })}
-      {L && (
+      {TT && (
           <button className="btn" onClick={() => setModal({ k: "assign", project: x.name })}>
             Assign Task
           </button>
@@ -1114,7 +1746,7 @@ function App() {
     </Modal>
   );
 
-  // Team lead: report to Super Admin
+  // Report to Super Admin
   const Report = ({ t }) => {
     const [f, setF] = useState({ cat: "Task Progress", desc: "", prog: "", block: "", act: "", att: "" });
 
@@ -1143,7 +1775,7 @@ function App() {
                 "Task Progress",
                 "Task Delay",
                 "Technical Issue",
-                "Employee Performance",
+                "Member Performance",
                 "Deadline Risk",
                 "Task Completion",
                 "Other",
@@ -1182,17 +1814,19 @@ function App() {
     );
   };
 
-  const TaskDetail = () => {
+  // ============ Task details ============
+  // NOTE: these are plain render functions (not inner components) so the page does not
+  // re-mount on every update. That is why ticking a checklist item no longer "reloads" the page.
+
+  const taskDetail = () => {
     const t = s.tasks.find((x) => x.id === route.id);
-    const [chg, setChg] = useState(""),
-      [dn, setDn] = useState(null);
     if (!t) {
       return <div className="card">Task not found.</div>;
     }
     const running = s.timer?.id === t.id;
     const done = t.status === "Completed";
     const items = t.checklist || [];
-    const canTick = (t.assignee === u.name || L) && !done;
+    const canTick = (t.assignee === u.name || TT) && !done;
 
     const checklistUI = (
       <>
@@ -1221,8 +1855,8 @@ function App() {
       </>
     );
 
-    // ---------- Team & task management (lead) ----------
-    if (L) {
+    // ---------- Team & task management ----------
+    if (TT) {
       const savedChanges = [...t.log].reverse().filter((l) =>
         l.txt.startsWith("Work update: ") || l.txt.startsWith("Completed: "));
 
@@ -1285,87 +1919,17 @@ function App() {
       );
     }
 
-    // ---------- Task management (employee) ----------
-    // To Do   -> [Start] [Reassign]
-    // Running -> [Stop & Save] [Mark Complete]
-    // Stopped -> [Resume] [Mark Complete]   (loops until Mark Complete)
-    const needSave = s.stopped === t.id && t.status === "Stopped";
-
+    // ---------- Task management ----------
+    // To Do / Reassigned -> [Start] [Reassign]
+    // In Progress        -> [Stop & Save] [Mark as Review] [Mark Complete]
+    // Stopped            -> [Resume] [Mark as Review] [Mark Complete]
+    // Review / Completed -> status only
     let ctrl;
     if (done) {
       ctrl = <span className="mu">Task completed.</span>;
-    } else if (needSave) {
-      ctrl = (
-        <div className="td-form">
-          <label>
-            Work description
-            <textarea
-              rows={4}
-              autoFocus
-              placeholder="Describe the work completed during this session..."
-              value={chg}
-              onChange={(e) => setChg(e.target.value)}
-            />
-          </label>
-          <button
-            className="btn"
-            disabled={!chg.trim()}
-            onClick={() => {
-              if (!chg.trim()) {
-                return;
-              }
-              up((d) => {
-                log(d, t.id, "Work update: " + chg.trim());
-                d.stopped = null;
-              });
-              setChg("");
-              setToast("Changes saved");
-            }}
-          >
-            Save Changes
-          </button>
-        </div>
-      );
-    } else if (dn !== null) {
-      ctrl = (
-        <div className="td-form">
-          <label>
-            Completion description
-            <textarea
-              rows={4}
-              autoFocus
-              placeholder="Describe the completed work and final outcome..."
-              value={dn}
-              onChange={(e) => setDn(e.target.value)}
-            />
-          </label>
-          <button
-            className="btn"
-            disabled={!dn.trim()}
-            onClick={() => {
-              if (!dn.trim()) {
-                return;
-              }
-              up((d) => {
-                if (d.timer && d.timer.id === t.id) {
-                  stopTimer(d);
-                }
-                const k = d.tasks.find((x) => x.id === t.id);
-                k.status = "Completed";
-                k.completedAt = now();
-                log(d, t.id, "Completed: " + dn.trim());
-                d.stopped = null;
-              });
-              setDn(null);
-              setToast("Task completed");
-            }}
-          >
-            Save &amp; Complete
-          </button>
-          <button className="btn sec" onClick={() => setDn(null)}>Cancel</button>
-        </div>
-      );
-    } else if (t.status === "To Do") {
+    } else if (t.status === "Review") {
+      ctrl = <span className="mu">Submitted for review.</span>;
+    } else if (FRESH.includes(t.status)) {
       ctrl = (
         <div className="td-ctrlbtns">
           <button className="btn" onClick={() => startTimer(t)}>
@@ -1378,26 +1942,34 @@ function App() {
           </button>
         </div>
       );
-    } else if (running) {
-      ctrl = (
-        <div className="td-ctrlbtns">
-          <button className="btn red" onClick={() => up(stopTimer)}>
-            <Icon n="Square" s={16} />
-            {" "}
-            Stop &amp; Save
-          </button>
-          <button className="btn sec" onClick={() => setDn("")}>Mark Complete</button>
-        </div>
-      );
     } else {
       ctrl = (
         <div className="td-ctrlbtns">
-          <button className="btn" onClick={() => startTimer(t)}>
-            <Icon n="Play" s={16} />
-            {" "}
-            Resume
+          {running
+            ? (
+              <button
+                className="btn red"
+                onClick={() => setModal({ k: "note", kind: "stopsave", t, at: Date.now() })}
+              >
+                <Icon n="Square" s={16} />
+                {" "}
+                Stop &amp; Save
+              </button>
+            )
+            : (
+              <button className="btn" onClick={() => startTimer(t)}>
+                <Icon n="Play" s={16} />
+                {" "}
+                Resume
+              </button>
+            )}
+          <button className="btn sec" onClick={() => markReview(t)}>Mark as Review</button>
+          <button
+            className="btn sec"
+            onClick={() => setModal({ k: "note", kind: "complete", t, at: Date.now() })}
+          >
+            Mark Complete
           </button>
-          <button className="btn sec" onClick={() => setDn("")}>Mark Complete</button>
         </div>
       );
     }
@@ -1431,7 +2003,7 @@ function App() {
     );
   };
 
-  const TaskTable = ({ list, size }) => (
+  const taskTable = (list, size) => (
     <div className={"card tbl " + (size || "")}>
       <table>
         <thead>
@@ -1439,7 +2011,7 @@ function App() {
             <th>ID</th>
             <th>Title</th>
             <th>Project</th>
-            {!E && <th>Assignee</th>}
+            {!TM && <th>Assignee</th>}
             <th>By</th>
             <th>Priority</th>
             <th>Due</th>
@@ -1452,7 +2024,7 @@ function App() {
               <td>{t.id}</td>
               <td><b>{t.title}</b></td>
               <td>{t.project}</td>
-              {!E && <td>{t.assignee}</td>}
+              {!TM && <td>{t.assignee}</td>}
               <td>{t.by}</td>
               <td><Pill v={t.priority} /></td>
               <td>{t.due}</td>
@@ -1467,33 +2039,26 @@ function App() {
 
   let page;
   const p = route.p;
-  const reportTask = p === "taskd" && L ? s.tasks.find((x) => x.id === route.id) : null;
+  const reportTask = p === "taskd" && TT ? s.tasks.find((x) => x.id === route.id) : null;
 
-  // ---------- Overview: Team & task management (lead) ----------
-  if (p === "overview" && L) {
+  // ---------- Overview: Team & task management ----------
+  if (p === "overview" && TT) {
     const cnt = (st) => tasks.filter((t) => t.status === st).length;
-    const reported = tasks.filter((t) => t.reports.length);
+    const reviewList = tasks.filter((t) => t.status === "Review");
     const stats = [
       ["Projects", projects.length, "FolderKanban"],
       ["Team Members", new Set(projects.flatMap((x) => x.members)).size, "UsersRound"],
       ["Total Task", tasks.length, "ListTodo"],
       ["Completed", cnt("Completed"), "Check"],
       ["In Progress", cnt("In Progress"), "Zap"],
-      ["Stopped", cnt("Stopped"), "Clock"],
+      ["Under Review", reviewList.length, "Eye"],
     ];
 
     page = (
       <div className="grid">
         <h2 className="t">Overview</h2>
 
-        <div className="lo-stats">
-          {stats.map(([a, b, i]) => (
-            <div key={a} className="card stat">
-              <i className="ic"><Icon n={i} s={20} /></i>
-              <div><span>{a}</span><b>{b}</b></div>
-            </div>
-          ))}
-        </div>
+        {statCards(stats)}
 
         <div className="lo-row">
           <div className="card">
@@ -1517,15 +2082,15 @@ function App() {
           </div>
 
           <div className="card">
-            <b>Reports to Super Admin ({reported.reduce((a, t) => a + t.reports.length, 0)})</b>
+            <b>Review ({reviewList.length})</b>
             <div className="lo-scroll">
-              {reported.map((t) => (
+              {reviewList.map((t) => (
                 <div key={t.id} className="lo-review" onClick={() => go({ p: "taskd", id: t.id })}>
                   <span>{t.title}<br /><small className="mu">{t.assignee}</small></span>
-                  <span className="mu">{t.reports.length} sent</span>
+                  <Pill v="Review" />
                 </div>
               ))}
-              {!reported.length && <p className="mu">No reports sent yet.</p>}
+              {!reviewList.length && <p className="mu">No tasks waiting for review.</p>}
             </div>
           </div>
 
@@ -1571,16 +2136,15 @@ function App() {
     );
   }
 
-  // ---------- Overview: Task management (employee) ----------
-  if (p === "overview" && E) {
+  // ---------- Overview: Task management ----------
+  if (p === "overview" && TM) {
     const cnt = (st) => tasks.filter((t) => t.status === st).length;
     const cur = (s.timer && tasks.find((t) => t.id === s.timer.id)) ||
       tasks.find((t) => t.status === "In Progress" || t.status === "Stopped") ||
       null;
     const curRun = !!cur && s.timer?.id === cur.id;
-    const curPending = !!cur && s.stopped === cur.id && cur.status === "Stopped";
     const upcomingList = tasks
-      .filter((t) => t.status !== "Completed" && (!cur || t.id !== cur.id))
+      .filter((t) => t.status !== "Completed" && t.status !== "Review" && (!cur || t.id !== cur.id))
       .sort((a, b) => a.due.localeCompare(b.due));
     const stats = [
       ["Open Tasks", tasks.filter((t) => t.status !== "Completed").length, "ListTodo"],
@@ -1594,14 +2158,7 @@ function App() {
       <div className="grid eo-page">
         <h2 className="t">Overview</h2>
 
-        <div className="lo-stats five">
-          {stats.map(([a, b, i]) => (
-            <div key={a} className="card stat">
-              <i className="ic"><Icon n={i} s={20} /></i>
-              <div><span>{a}</span><b>{b}</b></div>
-            </div>
-          ))}
-        </div>
+        {statCards(stats, "five")}
 
         <div className="eo-row">
           <div className="card eo-cur">
@@ -1635,20 +2192,11 @@ function App() {
                       ? (
                         <button
                           className="btn red"
-                          onClick={() => {
-                            up(stopTimer);
-                            go({ p: "taskd", id: cur.id });
-                          }}
+                          onClick={() => setModal({ k: "note", kind: "stopsave", t: cur, at: Date.now() })}
                         >
                           <Icon n="Square" s={16} />
                           {" "}
                           Stop &amp; Save
-                        </button>
-                      )
-                      : curPending
-                      ? (
-                        <button className="btn" onClick={() => go({ p: "taskd", id: cur.id })}>
-                          Save Changes
                         </button>
                       )
                       : (
@@ -1714,11 +2262,16 @@ function App() {
   }
 
   if (p === "project") {
+    const ps = (st) => projects.filter((x) => pstat(x) === st).length;
+
     page = (
       <div className="grid">
-        <div className="row sp">
-          <h2 className="t">Projects</h2>
-        </div>
+        {statCards([
+          ["Total Projects", projects.length, "FolderKanban"],
+          ["In Progress", ps("In Progress"), "Zap"],
+          ["Pending", ps("Pending"), "Clock"],
+          ["Completed", ps("Completed"), "Check"],
+        ], "four")}
         <ProjList projects={projects} prog={prog} pstat={pstat} go={go} s={s} />
       </div>
     );
@@ -1748,7 +2301,7 @@ function App() {
               ))}
             </div>
           </div>
-          <TaskTable list={tasks.filter((t) => t.project === x.name)} size="mid" />
+          {taskTable(tasks.filter((t) => t.project === x.name), "mid")}
         </div>
       );
   }
@@ -1760,19 +2313,16 @@ function App() {
 
     page = (
       <div className="grid">
-        <div className="row sp">
-          <h2 className="t">Teams</h2>
-          {L && (
-              <button className="btn" onClick={() => setModal({ k: "assign" })}>
-                + Assign Task
-              </button>
-            )}
-        </div>
+        {statCards([
+          ["Total Teams", projects.length, "UsersRound"],
+          ["Total Members", new Set(projects.flatMap((x) => [x.lead, ...x.members])).size, "User"],
+          ["Active Tasks", tasks.filter((t) => t.status !== "Completed").length, "ListTodo"],
+        ], "three")}
         <div className="toolbar">
           <div className="search">
             <span><Icon n="Search" s={18} /></span>
             <input
-              placeholder="Search teams, leads, members…"
+              placeholder="Search teams, projects, members…"
               value={mq}
               onChange={(e) => setMq(e.target.value)}
             />
@@ -1781,6 +2331,12 @@ function App() {
             <option value="All">All teams</option>
             {[...new Set(projects.map((x) => x.team))].map((x) => <option key={x}>{x}</option>)}
           </select>
+          {TT && (
+              <button className="btn" onClick={() => setModal({ k: "assign" })}>
+                <Icon n="Plus" s={18} />
+                Assign Task
+              </button>
+            )}
         </div>
         <div className="card tbl fix">
           <table>
@@ -1830,17 +2386,18 @@ function App() {
       (flt === "All" || t.status === flt) &&
         (tp === "All" || t.priority === tp) &&
         (t.id + t.title + t.project + t.assignee).toLowerCase().includes(tq.toLowerCase()));
+    const cnt = (...st) => tasks.filter((t) => st.includes(t.status)).length;
 
     page = (
       <div className="grid">
-        <div className="row sp">
-          <h2 className="t">Tasks</h2>
-          {L && (
-              <button className="btn" onClick={() => setModal({ k: "assign" })}>
-                + Assign Task
-              </button>
-            )}
-        </div>
+        {statCards([
+          ["Total Task", tasks.length, "ListTodo"],
+          ["To Do", cnt("To Do", "Reassigned"), "ClipboardCheck"],
+          ["In Progress", cnt("In Progress"), "Zap"],
+          ["Stopped", cnt("Stopped"), "Clock"],
+          ["Review", cnt("Review"), "Eye"],
+          ["Completed", cnt("Completed"), "Check"],
+        ])}
         <div className="toolbar">
           <div className="search">
             <span><Icon n="Search" s={18} /></span>
@@ -1860,14 +2417,24 @@ function App() {
               <option key={x} value={x}>{x === "All" ? "All priorities" : x}</option>
             ))}
           </select>
+          {TT && (
+              <button className="btn" onClick={() => setModal({ k: "assign" })}>
+                <Icon n="Plus" s={18} />
+                Assign Task
+              </button>
+            )}
         </div>
-        <TaskTable list={fl} size="fix" />
+        {taskTable(fl, "fix")}
       </div>
     );
   }
 
   if (p === "taskd") {
-    page = <TaskDetail key={route.id} />;
+    page = taskDetail();
+  }
+
+  if (p === "profile") {
+    page = <Profile c={c} />;
   }
 
   if (p === "chat" || p === "dm") {
@@ -1979,12 +2546,6 @@ function App() {
         <div className="prof" ref={profRef}>
           {dd && (
               <div className="dd">
-                <b>{u.name}</b>
-                <br />
-                <small className="mu">{u.email}</small>
-                <br />
-                <small className="mu">Current: {WS[ws]}</small>
-                <hr />
                 {(u.ws || []).map((w) => (
                   <button key={w} className={w === ws ? "cur" : ""} onClick={() => switchWs(w)}>
                     {WS[w]}
@@ -1992,19 +2553,15 @@ function App() {
                   </button>
                 ))}
                 <hr />
-                <button
-                  onClick={() => {
-                    setDd(false);
-                    setToast("Profile: " + u.name + " · " + u.email);
-                  }}
-                >
-                  Profile Settings
+                <button className="ddi" onClick={() => go({ p: "profile" })}>
+                  <Icon n="User" s={18} />
+                  Profile
                 </button>
                 <button
+                  className="ddi"
                   onClick={() => {
                     up((d) => {
                       stopTimer(d);
-                      d.stopped = null;
                       d.user = null;
                     });
                     setRoute({ p: "overview" });
@@ -2012,6 +2569,7 @@ function App() {
                     setDd(false);
                   }}
                 >
+                  <Icon n="LogOut" s={18} />
                   Logout
                 </button>
               </div>
@@ -2022,7 +2580,9 @@ function App() {
             data-tip={dd || side ? undefined : u.name}
             onClick={() => setDd(!dd)}
           >
-            <span className="pav">{ini(u.name)}</span>
+            <span className="pav">
+              {u.photo ? <img src={u.photo} alt="" /> : ini(u.name)}
+            </span>
             {side && <span className="pn"><b>{u.name}</b><small>Profile</small></span>}
           </button>
         </div>
@@ -2031,15 +2591,26 @@ function App() {
         <div className="page" key={JSON.stringify(route) + ws}>
           {p !== "overview" && (
             <div className="topbar">
-              <BackBtn />
+              <div className="tb-left">
+                <BackBtn />
+                <h2 className="t">{titles[p]}</h2>
+              </div>
               {reportTask && (
-                <button
-                  className="btn report"
-                  onClick={() => setModal({ k: "report", t: reportTask })}
-                >
-                  <Icon n="Send" s={18} />
-                  Report
-                </button>
+                <div className="tb-right">
+                  {reportTask.status === "Review" && (
+                    <button className="btn report" onClick={() => completeReviewed(reportTask)}>
+                      <Icon n="Check" s={18} />
+                      Mark Complete
+                    </button>
+                  )}
+                  <button
+                    className="btn report"
+                    onClick={() => setModal({ k: "report", t: reportTask })}
+                  >
+                    <Icon n="Send" s={18} />
+                    Report
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -2048,7 +2619,8 @@ function App() {
       </main>
       {modal?.k === "assign" && <Assign />}
       {modal?.k === "reassign" && <Reassign t={modal.t} />}
-      {modal?.k === "team" && <TeamModal x={modal.x} />}
+      {modal?.k === "note" && <NoteModal m={modal} />}
+      {modal?.k === "team" && teamModal(modal.x)}
       {modal?.k === "report" && <Report t={modal.t} />}
       <ToastHost />
     </div>
@@ -2068,7 +2640,7 @@ function ProjList({ projects, prog, pstat, go, s }) {
         <div className="search">
           <span><Icon n="Search" s={18} /></span>
           <input
-            placeholder="Search projects, teams, leads…"
+            placeholder="Search projects, teams, members…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -2100,7 +2672,7 @@ function ProjList({ projects, prog, pstat, go, s }) {
               return (
                 <tr key={p.id} className="cl" onClick={() => go({ p: "projd", id: p.id })}>
                   <td>{p.id}</td>
-                  <td><b>{p.name}</b><br /><small className="mu">{p.desc}</small></td>
+                  <td><b>{p.name}</b></td>
                   <td>{p.team}</td>
                   <td>{p.lead}</td>
                   <td>{t.filter((x) => x.status === "Completed").length}/{t.length}</td>

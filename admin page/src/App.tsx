@@ -24,12 +24,21 @@ import {
   Printer,
   Search,
   Square,
+  UserCheck,
   UserPlus,
+  UserX,
   UsersRound,
   Video,
   Wallet,
   X,
   Zap,
+  AtSign,
+  Camera,
+  Lock,
+  LogOut,
+  Mail,
+  Pencil,
+  User,
 } from "lucide-react";
 import "./style.css";
 
@@ -37,7 +46,8 @@ import "./style.css";
 // Constants and demo data
 // ============================================================
 
-const K = "wf_admin_state_v1";
+// Frontend demo: nothing is saved to localStorage. Every page refresh starts again
+// from the demo data below (only the demo login works until a backend is connected).
 
 // ============================================================
 // Icons (lucide-react)
@@ -67,12 +77,21 @@ const LIB = {
   Printer,
   Search,
   Square,
+  UserCheck,
   UserPlus,
+  UserX,
   UsersRound,
   Video,
   Wallet,
   X,
   Zap,
+  AtSign,
+  Camera,
+  Lock,
+  LogOut,
+  Mail,
+  Pencil,
+  User,
 };
 
 function Icon({ n, s = 20 }) {
@@ -92,7 +111,13 @@ const ST = ["To Do", "In Progress", "Review", "Completed"],
     "Karan Mehta",
   ];
 
-const SQ = ["Alpha Engineering", "Beta Mobile Squad", "Core HR & Ops", "Analytics & Design"];
+const SQ = [
+  "Alpha Engineering",
+  "Beta Mobile Squad",
+  "Core HR & Ops",
+  "Analytics & Design",
+  "Customer Success",
+];
 
 const now = () => new Date().toLocaleString([], { dateStyle: "short", timeStyle: "short" });
 
@@ -111,6 +136,10 @@ const fmt = (s) => {
 
 const money = (n) =>
   "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// No decimals, Indian grouping (e.g. ₹42,65,000)
+const money0 = (n) =>
+  "₹" + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 const fdate = (s) => {
   if (!s) {
@@ -144,22 +173,77 @@ const calc = (items, cg, sg) => {
 
 const blankParty = { name: "", gst: "", addr: "", phone: "", email: "" };
 
-const INV = (no, name, date, fy, amt, due, status) => (
-  {
+// Demo company details (pre-filled in the Create invoice form)
+const SELLER = {
+  name: "Work Flow Technologies Pvt Ltd",
+  gst: "33AABCW4821K1Z5",
+  addr: "12, Anna Salai, Teynampet, Chennai, Tamil Nadu 600018",
+  phone: "+91 98765 43210",
+  email: "accounts@workflow.com",
+};
+
+// items: [particulars, HSN/SAC, qty, price]
+const INV = (no, name, date, fy, items, due, status) => {
+  const its = items.map(([p, h, q, r]) => ({ p, h, q: String(q), r: String(r) }));
+  const d = no.slice(-4);
+  return {
     id: no,
     no,
     fy,
     date,
     due,
     status,
-    seller: { ...blankParty },
-    buyer: { ...blankParty, name },
-    items: [{ p: "Professional services", h: "9983", q: "1", r: String(amt) }],
-    cgst: "0",
-    sgst: "0",
-    total: amt,
-  }
-);
+    seller: { ...SELLER },
+    buyer: {
+      name,
+      gst: "33AABC" + d + "F1Z" + (Number(d) % 9 + 1),
+      addr: "Plot " + (Number(d) % 90 + 10) + ", Industrial Estate, Chennai, Tamil Nadu 600032",
+      phone: "+91 98" + d + " " + String(Number(d) * 37).slice(0, 5),
+      email: "accounts@" + name.toLowerCase().replace(/[^a-z]/g, "") + ".in",
+    },
+    items: its,
+    cgst: "9",
+    sgst: "9",
+    total: calc(its, "9", "9").total,
+    by: "Arun Patel",
+  };
+};
+
+// Each task has its own description (shown on the task details page)
+const DEF_DESC = "Deliver per acceptance checklist and update the team.";
+
+const TDESC = {
+  "TASK-1042":
+    "Build a REST endpoint that exports invoices as PDF and CSV, with date range and status filters.",
+  "TASK-1043":
+    "Set up USD, EUR and INR billing with live rate caching and a currency selector on every invoice.",
+  "TASK-1044":
+    "Compile sprint highlights, demo outcomes and open action items for the sprint review meeting.",
+  "TASK-1045":
+    "Add push notification triggers for task assignments, due-date reminders and approval requests.",
+  "TASK-1046":
+    "Create a step-by-step onboarding checklist wizard for new joiners with progress tracking.",
+  "TASK-1047":
+    "Build an ARR cohort retention chart for the executive analytics dashboard.",
+  "TASK-1039":
+    "Integrate OAuth2 Google sign-in with token refresh and secure session handling.",
+  "TASK-1048":
+    "Design the client onboarding screens: welcome, company profile and first project setup.",
+  "TASK-1049":
+    "Set up a CI pipeline that builds and signs the iOS and Android test builds on every merge.",
+  "TASK-1050":
+    "Implement the leave balance calculation with carry-forward and holiday calendar rules.",
+  "TASK-1051":
+    "Write unit tests for the GST tax rule engine covering CGST, SGST and IGST cases.",
+  "TASK-1052":
+    "Finalise the executive KPI dashboard layout with revenue, churn and pipeline widgets.",
+  "TASK-1053":
+    "Build the payroll audit report export with department-wise filters and CSV download.",
+  "TASK-1054":
+    "Add a customer feedback form with rating, category and optional attachment upload.",
+  "TASK-1038":
+    "Review the billing database schema, indexes and migration scripts before release.",
+};
 
 const T = (id, title, project, assignee, by, priority, due, status, secs = 0) =>
   (
@@ -172,7 +256,7 @@ const T = (id, title, project, assignee, by, priority, due, status, secs = 0) =>
       priority,
       due,
       status,
-      desc: "Deliver per acceptance checklist and update the team.",
+      desc: TDESC[id] || DEF_DESC,
       secs,
       log: [{ t: "01/11/26", txt: "Task assigned by " + by }],
       reports: [],
@@ -223,6 +307,16 @@ const seed = {
       due: "2027-01-25",
       status: "In Progress",
     },
+    {
+      id: "P-5",
+      name: "Customer Portal",
+      desc: "Self-service portal for client onboarding and feedback.",
+      lead: "Karan Mehta",
+      team: SQ[4],
+      members: ["Karan Mehta", "Sneha Rao", "Alex Morgan", "Chloe Bennett"],
+      due: "2027-02-15",
+      status: "In Progress",
+    },
   ],
   tasks: [
     T(
@@ -236,17 +330,32 @@ const seed = {
       "In Progress",
       2538,
     ),
-    T(
-      "TASK-1043",
-      "Configure multi-currency billing",
-      "Billing Platform",
-      "Sneha Rao",
-      "Arun Patel",
-      "High",
-      "2026-11-10",
-      "Review",
-      2320,
-    ),
+    {
+      ...T(
+        "TASK-1043",
+        "Configure multi-currency billing",
+        "Billing Platform",
+        "Sneha Rao",
+        "Arun Patel",
+        "High",
+        "2026-11-10",
+        "Review",
+        2320,
+      ),
+      // Demo report as the team lead would submit it
+      reports: [
+        {
+          cat: "Task Progress",
+          at: "11/11/26, 10:30 AM",
+          by: "Sneha Rao",
+          desc: "Multi-currency billing is configured for USD, EUR and INR with live rate caching.",
+          sum: "Rate cache and currency selector done. Invoice totals convert correctly.",
+          block: "Waiting for finance to confirm the rounding rules.",
+          act: "Review the conversion logic and approve for release.",
+          file: "",
+        },
+      ],
+    },
     T(
       "TASK-1044",
       "Prepare sprint review notes",
@@ -299,25 +408,196 @@ const seed = {
       "Completed",
       4500,
     ),
+    T(
+      "TASK-1048",
+      "Design client onboarding screens",
+      "Customer Portal",
+      "Chloe Bennett",
+      "Karan Mehta",
+      "Medium",
+      "2026-11-22",
+      "In Progress",
+      1860,
+    ),
+    {
+      ...T(
+        "TASK-1049",
+        "Set up CI pipeline for mobile builds",
+        "Mobile App",
+        "Karan Mehta",
+        "Priya Sharma",
+        "High",
+        "2026-11-16",
+        "Review",
+        5400,
+      ),
+      reports: [
+        {
+          cat: "Task Progress",
+          at: "11/17/26, 04:15 PM",
+          by: "Karan Mehta",
+          desc: "CI pipeline now builds, signs and uploads iOS and Android test builds on every merge to main.",
+          sum: "Pipeline runs in about 9 minutes. Signing keys are stored as encrypted secrets.",
+          block: "Android keystore rotation is pending approval from the security team.",
+          act: "Approve the pipeline and schedule the keystore rotation for next sprint.",
+          file: "ci-pipeline-run.log",
+        },
+      ],
+    },
+    T(
+      "TASK-1050",
+      "Leave balance calculation module",
+      "HR Management",
+      "Maya Chen",
+      "Arun Patel",
+      "Medium",
+      "2026-11-28",
+      "In Progress",
+      2700,
+    ),
+    T(
+      "TASK-1051",
+      "Tax rule engine unit tests",
+      "Billing Platform",
+      "Alex Morgan",
+      "Arun Patel",
+      "Low",
+      "2026-12-02",
+      "To Do",
+    ),
+    T(
+      "TASK-1052",
+      "Executive KPI dashboard layout",
+      "Analytics Dashboard",
+      "Chloe Bennett",
+      "Arun Patel",
+      "High",
+      "2026-11-14",
+      "Completed",
+      7200,
+    ),
+    {
+      ...T(
+        "TASK-1053",
+        "Payroll audit report export",
+        "HR Management",
+        "Arun Patel",
+        "Maya Chen",
+        "High",
+        "2026-11-26",
+        "Review",
+        3900,
+      ),
+      reports: [
+        {
+          cat: "Completion Report",
+          at: "11/18/26, 11:05 AM",
+          by: "Arun Patel",
+          desc: "Payroll audit export is ready with department filters and CSV download.",
+          sum: "Tested with 1,200 sample records. Export finishes in under 3 seconds.",
+          block: "No blockers.",
+          act: "Review the CSV column order and approve for release.",
+          file: "",
+        },
+      ],
+    },
+    T(
+      "TASK-1054",
+      "Customer feedback form",
+      "Customer Portal",
+      "Sneha Rao",
+      "Karan Mehta",
+      "Low",
+      "2026-12-05",
+      "To Do",
+    ),
+    T(
+      "TASK-1038",
+      "Database schema review",
+      "Billing Platform",
+      "Rahul Varma",
+      "Arun Patel",
+      "Medium",
+      "2026-10-25",
+      "Completed",
+      3600,
+    ),
   ],
   invoices: [
-    INV("INV-2025-1048", "Northstar Studio", "2025-05-18", "FY 2025-26", 4850, "2025-06-17", "Paid"),
-    INV("INV-2025-1047", "Olive & Oak Market", "2025-05-16", "FY 2025-26", 1275, "2025-06-15", "Pending"),
-    INV("INV-2025-1046", "Meridian Health Co.", "2025-05-12", "FY 2025-26", 8320, "2025-06-11", "Overdue"),
-    INV("INV-2025-1045", "Common Ground", "2025-05-08", "FY 2025-26", 2400, "2025-06-07", "Paid"),
-    INV("INV-2025-1044", "Fieldwork Partners", "2025-05-02", "FY 2025-26", 5600, "2025-06-01", "Pending"),
-    INV("INV-2025-1043", "Little Harbor Books", "2025-04-28", "FY 2025-26", 920, "2025-05-28", "Overdue"),
-    INV("INV-2025-1042", "Aster & Finch", "2025-04-22", "FY 2025-26", 3150, "2025-05-22", "Paid"),
-    INV("INV-2025-1041", "Cedarline Works", "2025-04-18", "FY 2025-26", 1975, "2025-05-18", "Pending"),
-    INV("INV-2025-1040", "Juniper & Stone", "2025-03-28", "FY 2024-25", 3650, "2025-04-27", "Paid"),
-    INV("INV-2025-1039", "Pinecrest Digital", "2025-02-14", "FY 2024-25", 2180, "2025-03-16", "Pending"),
+    INV("INV-2026-1059", "Nilgiri Tea Company", "2026-11-17", "FY 2026-27", [
+      ["Website redesign - phase 1", "9983", 1, 85000],
+    ], "2026-12-17", "Draft"),
+    INV("INV-2026-1058", "Orbit Retail Pvt Ltd", "2026-11-14", "FY 2026-27", [
+      ["Inventory app development", "9983", 1, 145000],
+      ["Cloud hosting (3 months)", "998315", 3, 6500],
+    ], "2026-12-14", "Pending"),
+    INV("INV-2026-1057", "Greenleaf Foods", "2026-11-06", "FY 2026-27", [
+      ["Billing software licence", "997331", 5, 12000],
+      ["Onboarding and training", "9992", 1, 18000],
+    ], "2026-12-06", "Paid"),
+    INV("INV-2026-1056", "Kaveri Textiles", "2026-10-22", "FY 2026-27", [
+      ["ERP integration support", "9983", 1, 92000],
+    ], "2026-11-21", "Pending"),
+    INV("INV-2026-1055", "Sundaram Logistics", "2026-10-10", "FY 2026-27", [
+      ["Fleet tracking dashboard", "9983", 1, 128000],
+      ["Mobile app maintenance", "9987", 2, 15000],
+    ], "2026-11-09", "Overdue"),
+    INV("INV-2026-1054", "Bluewave Systems", "2026-09-19", "FY 2026-27", [
+      ["API development", "9983", 1, 76000],
+    ], "2026-10-19", "Overdue"),
+    INV("INV-2026-1053", "Madurai Silks", "2026-09-02", "FY 2026-27", [
+      ["E-commerce maintenance", "9987", 3, 14000],
+    ], "2026-10-02", "Paid"),
+    INV("INV-2026-1052", "Zenith Clinics", "2026-08-12", "FY 2026-27", [
+      ["Appointment booking module", "9983", 1, 98000],
+      ["SMS gateway setup", "9983", 1, 9500],
+    ], "2026-09-11", "Paid"),
+    INV("INV-2026-1051", "Lotus Interiors", "2026-07-21", "FY 2026-27", [
+      ["Portfolio website", "9983", 1, 54000],
+    ], "2026-08-20", "Paid"),
+    INV("INV-2026-1050", "Annapurna Caterers", "2026-06-15", "FY 2026-27", [
+      ["Order management system", "9983", 1, 110000],
+    ], "2026-07-15", "Paid"),
+    INV("INV-2026-1049", "Coastal Ventures", "2026-05-08", "FY 2026-27", [
+      ["Annual support contract", "9987", 1, 60000],
+    ], "2026-06-07", "Paid"),
+    INV("INV-2025-1048", "Northstar Studio", "2025-05-18", "FY 2025-26", [
+      ["Brand website", "9983", 1, 72000],
+      ["Content migration", "9983", 1, 14000],
+    ], "2025-06-17", "Paid"),
+    INV("INV-2025-1046", "Meridian Health Co.", "2025-05-12", "FY 2025-26", [
+      ["Patient portal development", "9983", 1, 135000],
+    ], "2025-06-11", "Overdue"),
+    INV("INV-2025-1042", "Aster & Finch", "2025-04-22", "FY 2025-26", [
+      ["UI/UX design package", "9983", 1, 48000],
+    ], "2025-05-22", "Paid"),
+    INV("INV-2025-1040", "Juniper & Stone", "2025-03-28", "FY 2024-25", [
+      ["Marketing site", "9983", 1, 39000],
+    ], "2025-04-27", "Paid"),
   ],
   company: { ...blankParty },
   msgs: {
-    "#alpha-engineering": [{ u: "Sneha Rao", x: "Currency cache is live on staging.", t: "09:40" }],
-    "#beta-mobile": [{ u: "Priya Sharma", x: "Test builds are on TestFlight.", t: "10:05" }],
-    "Rahul Varma": [{ u: "Rahul Varma", x: "Export endpoint almost done.", t: "09:45" }],
-    "Priya Sharma": [],
+    "#alpha-engineering": [
+      { u: "Sneha Rao", x: "Currency cache is live on staging.", t: "09:40" },
+      { u: "Arun Patel", x: "Great. Please add the rounding notes to the task.", t: "09:52" },
+      { u: "Rahul Varma", x: "Export endpoint will be ready for review by evening.", t: "10:15" },
+    ],
+    "#beta-mobile": [
+      { u: "Priya Sharma", x: "Test builds are on TestFlight.", t: "10:05" },
+      { u: "Karan Mehta", x: "CI pipeline is green on main.", t: "10:30" },
+    ],
+    "#billing-platform": [
+      { u: "Alex Morgan", x: "Tax engine tests start tomorrow.", t: "11:10" },
+      { u: "Arun Patel", x: "Sprint review is on Friday at 4 PM.", t: "11:20" },
+    ],
+    "Rahul Varma": [
+      { u: "Rahul Varma", x: "Export endpoint almost done.", t: "09:45" },
+      { u: "Arun Patel", x: "Thanks, ping me once it is on staging.", t: "09:50" },
+    ],
+    "Priya Sharma": [{ u: "Priya Sharma", x: "Can you review the CI report today?", t: "10:40" }],
+    "Sneha Rao": [{ u: "Sneha Rao", x: "Submitted TASK-1043 for review.", t: "Yesterday" }],
+    "Maya Chen": [{ u: "Maya Chen", x: "Please check the payroll audit export.", t: "11:35" }],
+    "Karan Mehta": [],
   },
   notifs: [
     {
@@ -343,26 +623,37 @@ const seed = {
       un: false,
       t: "Yesterday",
     },
+    {
+      id: 4,
+      txt: "Karan Mehta submitted TASK-1049 for review",
+      cat: "Task Review",
+      task: "TASK-1049",
+      un: true,
+      t: "Yesterday",
+    },
+    {
+      id: 5,
+      txt: "Arun Patel submitted TASK-1053 for review",
+      cat: "Task Review",
+      task: "TASK-1053",
+      un: true,
+      t: "2h ago",
+    },
+    {
+      id: 6,
+      txt: "Invoice INV-2026-1055 for Sundaram Logistics is overdue",
+      cat: "Invoice",
+      un: false,
+      t: "2 days ago",
+    },
   ],
 };
 
-// Older saved state has no invoices, so merge the new keys in from the seed
-const load = () => {
-  try {
-    const sv = JSON.parse(localStorage.getItem(K));
-    if (!sv) {
-      return seed;
-    }
-    return {
-      ...seed,
-      ...sv,
-      invoices: sv.invoices || seed.invoices,
-      company: sv.company || seed.company,
-    };
-  } catch (e) {
-    return seed;
-  }
-};
+// Always start from a fresh copy of the demo data (nothing is read from localStorage)
+const load = () => JSON.parse(JSON.stringify(seed));
+
+// Accounts created through Sign Up live only in memory until the page is refreshed
+let ACCS = [];
 
 const USERS_BASE = PEOPLE.map((n) => ({
   name: n,
@@ -371,15 +662,23 @@ const USERS_BASE = PEOPLE.map((n) => ({
 }));
 
 function getUsers() {
-  let accs = [];
-  try {
-    accs = JSON.parse(localStorage.getItem("wf_admin_acc") || "[]");
-  } catch (e) {}
-  const extra = accs
+  const extra = ACCS
     .filter((x) => !USERS_BASE.some((b) => b.email === x.email))
     .map((x) => ({ name: x.name, email: x.email, username: x.user }));
   return [...USERS_BASE, ...extra];
 }
+
+// Unique people across every project
+const allMembers = (projects) => [...new Set(projects.flatMap((p) => p.members))];
+
+// Demo presence: the logged-in admin is always online, everyone else is derived from the name
+const presence = (name, me) => {
+  if (name === me) {
+    return "Online";
+  }
+  const sum = [...name].reduce((a, ch) => a + ch.charCodeAt(0), 0);
+  return sum % 3 === 0 ? "Offline" : "Online";
+};
 
 function Modal({ title, onClose, children }) {
   return (
@@ -399,6 +698,38 @@ const Pill = ({ v }) => <span className={"pill " + v.split(" ")[0]}>{v}</span>;
 
 const Bar = ({ v }) => <div className="bar"><i style={{ width: v + "%" }} /></div>;
 
+// Row of metric cards. items: [icon, label, value, optional small text]
+function Metrics({ items }) {
+  return (
+    <div className="mtr" style={{ "--n": items.length }}>
+      {items.map(([ic, a, b, sub]) => (
+        <div key={a} className="card stat sm">
+          <i className="ic"><Icon n={ic} s={22} /></i>
+          <div>
+            <span>{a}</span>
+            <b>{b}</b>
+            {sub !== undefined && <small>{sub}</small>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Back button + page title on one line; optional actions sit on the right
+function PageHead({ c, title, children }) {
+  return (
+    <div className="phead">
+      <button className="btn sec sm back" onClick={c.back}>
+        <Icon n="ArrowLeft" s={16} />
+        Back
+      </button>
+      <h2 className="t">{title}</h2>
+      {children && <div className="phr">{children}</div>}
+    </div>
+  );
+}
+
 function Auth({ c }) {
   const [step, setStep] = useState("in"),
     [err, setErr] = useState(""),
@@ -415,13 +746,7 @@ function Auth({ c }) {
     pw1: "",
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-  const accs = () => {
-    try {
-      return JSON.parse(localStorage.getItem("wf_admin_acc") || "[]");
-    } catch (x) {
-      return [];
-    }
-  };
+  const accs = () => ACCS;
   const login = (u) =>
     c.up((d) => {
       d.user = u;
@@ -443,7 +768,13 @@ function Auth({ c }) {
     e.preventDefault();
     const id = f.id.trim().toLowerCase();
     if (id === "abc@gmail.com" && f.pw === "123456") {
-      return login({ name: "Arun Patel", email: "abc@gmail.com" });
+      return login({
+        name: "Arun Patel",
+        email: "abc@gmail.com",
+        phone: "+91 98765 43210",
+        user: "arun.patel",
+        pw: "123456",
+      });
     }
     const a = accs().find((x) =>
       (x.email.toLowerCase() === id || x.user.toLowerCase() === id) && x.pw === f.pw);
@@ -480,14 +811,31 @@ function Auth({ c }) {
       user: f.user.trim(),
       pw: f.pw1,
     };
-    try {
-      localStorage.setItem("wf_admin_acc", JSON.stringify([...accs(), u]));
-    } catch (x) {}
+    ACCS = [...ACCS, u];
     login(u);
   };
 
+  // The spotlight and dotted grid in the background follow the cursor
+  const onMove = (e) => {
+    const el = e.currentTarget,
+      r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", e.clientX - r.left + "px");
+    el.style.setProperty("--my", e.clientY - r.top + "px");
+  };
+
   return (
-    <div className="auth">
+    <div className="auth" onMouseMove={onMove}>
+      <div className="bg" aria-hidden="true">
+        <i className="orb o1" />
+        <i className="orb o2" />
+        <i className="orb o3" />
+        <i className="curve c1" />
+        <i className="curve c2" />
+        <i className="curve c3" />
+        <i className="curve c4" />
+        <i className="grid-dots" />
+        <i className="glow" />
+      </div>
       <div className="hero">
         <div className="logo" style={{ marginBottom: 10 }}>W.</div>
         <b style={{ letterSpacing: ".12em", fontSize: 12 }}>WORK FLOW ADMIN</b>
@@ -813,9 +1161,19 @@ function InvoiceList({ c }) {
       (st === "All" || i.status === st) &&
       (i.no + " " + i.buyer.name).toLowerCase().includes(q.toLowerCase()));
 
+  const by = (x) => invs.filter((i) => i.status === x);
+  const amt = (arr) => money0(arr.reduce((a, i) => a + i.total, 0));
+  const metrics = [
+    ["FileText", "Total Invoices", invs.length, amt(invs)],
+    ["Clock", "Pending", by("Pending").length, amt(by("Pending"))],
+    ["Bell", "Overdue", by("Overdue").length, amt(by("Overdue"))],
+    ["Check", "Paid", by("Paid").length, amt(by("Paid"))],
+  ];
+
   return (
-    <div className="grid">
-      <h2 className="t">Invoices</h2>
+    <div className="grid fit">
+      <PageHead c={c} title="Invoices" />
+      <Metrics items={metrics} />
       <div className="toolbar invtb">
         <div className="search">
           <span><Icon n="Search" s={18} /></span>
@@ -902,9 +1260,9 @@ function InvoiceForm({ c, edit }) {
       no: nextNo(fy),
       date,
       due: isoOf(dd),
-      seller: { ...(c.s.company || blankParty) },
+      seller: { ...blankParty },
       buyer: { ...blankParty },
-      items: [{ p: "", h: "9983", q: "1", r: "" }],
+      items: [1, 2, 3].map(() => ({ p: "", h: "9983", q: "1", r: "" })),
       cgst: "9",
       sgst: "9",
     };
@@ -1035,8 +1393,8 @@ function InvoiceForm({ c, edit }) {
   );
 
   return (
-    <div className="grid">
-      <h2 className="t">{edit ? "Edit draft invoice" : "Create invoice"}</h2>
+    <div className="grid fit">
+      <PageHead c={c} title={edit ? "Edit draft invoice" : "Create invoice"} />
       <form
         className="invf"
         onSubmit={(e) => {
@@ -1044,30 +1402,33 @@ function InvoiceForm({ c, edit }) {
           save("Pending");
         }}
       >
-        <div className="invl">
-          <div className="card">
-            <h3>Invoice details</h3>
-            <div className="fg">
-              <label>
-                Financial year
-                <select value={f.fy} onChange={setFy}>
-                  {FYS.map((y) => <option key={y}>{y}</option>)}
-                </select>
-              </label>
-              <label>
-                Invoice no.
-                <input value={f.no} onChange={set("no")} />
-              </label>
-              <label>
-                Invoice date
-                <input type="date" value={f.date} onChange={setDate} />
-              </label>
-              <label>
-                Due date
-                <input type="date" value={f.due} onChange={set("due")} />
-              </label>
-            </div>
+        {/* Row 1: invoice details across the full width */}
+        <div className="card invdet">
+          <h3>Invoice details</h3>
+          <div className="fg fg4">
+            <label>
+              Financial year
+              <select value={f.fy} onChange={setFy}>
+                {FYS.map((y) => <option key={y}>{y}</option>)}
+              </select>
+            </label>
+            <label>
+              Invoice no.
+              <input value={f.no} onChange={set("no")} />
+            </label>
+            <label>
+              Invoice date
+              <input type="date" value={f.date} onChange={setDate} />
+            </label>
+            <label>
+              Due date
+              <input type="date" value={f.due} onChange={set("due")} />
+            </label>
           </div>
+        </div>
+
+        {/* Row 2 left: seller on top, bill to below */}
+        <div className="invl">
           <div className="card">
             <h3>Seller / company details</h3>
             {partyFields("seller")}
@@ -1078,12 +1439,13 @@ function InvoiceForm({ c, edit }) {
           </div>
         </div>
 
-        <div className="invr">
-          <div className="card">
-            <div className="row sp" style={{ marginBottom: 10 }}>
-              <h3 style={{ margin: 0 }}>Line items</h3>
-              <span className="mu">Amounts shown in INR</span>
-            </div>
+        {/* Row 2 right: line items and totals */}
+        <div className="card invr">
+          <div className="row sp" style={{ marginBottom: 10 }}>
+            <h3 style={{ margin: 0 }}>Line items</h3>
+            <span className="mu">Amounts shown in INR</span>
+          </div>
+          <div className="liscr">
             <div className="li">
               <table>
                 <thead>
@@ -1156,44 +1518,50 @@ function InvoiceForm({ c, edit }) {
               <Icon n="Plus" s={16} />
               Add item
             </button>
-            <div className="itot">
-              <div className="tr"><span>Sub total</span><b>{money(t.sub)}</b></div>
-              <div className="tr">
-                <span className="pc">
-                  CGST
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={f.cgst}
-                    onChange={set("cgst")}
-                  />
-                  %
-                </span>
-                <b>{money(t.c1)}</b>
-              </div>
-              <div className="tr">
-                <span className="pc">
-                  SGST
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={f.sgst}
-                    onChange={set("sgst")}
-                  />
-                  %
-                </span>
-                <b>{money(t.s1)}</b>
-              </div>
-              <div className="tr grand"><span>Total Amount</span><span>{money(t.total)}</span></div>
-            </div>
           </div>
-          {err && <div className="err">{err}</div>}
-          <div className="iact">
+          <div className="itot">
+            <div className="tr"><span>Sub total</span><b>{money(t.sub)}</b></div>
+            <div className="tr">
+              <span className="pc">
+                CGST
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={f.cgst}
+                  onChange={set("cgst")}
+                />
+                %
+              </span>
+              <b>{money(t.c1)}</b>
+            </div>
+            <div className="tr">
+              <span className="pc">
+                SGST
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={f.sgst}
+                  onChange={set("sgst")}
+                />
+                %
+              </span>
+              <b>{money(t.s1)}</b>
+            </div>
+            <div className="tr grand"><span>Total Amount</span><span>{money(t.total)}</span></div>
+          </div>
+        </div>
+
+        {/* Row 3: Save draft under the left column, Generate invoice under the right */}
+        <div className="invact">
+          <div className="al">
+            {err && <div className="err">{err}</div>}
             <button type="button" className="btn sec" onClick={() => save("Draft")}>
               Save draft
             </button>
+          </div>
+          <div className="ar">
             <button className="btn">Generate invoice</button>
           </div>
         </div>
@@ -1237,9 +1605,15 @@ function InvoiceView({ c, id }) {
   return (
     <div className="grid">
       <div className="row sp noprint">
-        <div>
-          <span className="mu">Invoice · {inv.fy}</span>
-          <h2 className="t">{inv.no}</h2>
+        <div className="row" style={{ gap: 14, flexWrap: "nowrap" }}>
+          <button className="btn sec sm" onClick={c.back}>
+            <Icon n="ArrowLeft" s={16} />
+            Back
+          </button>
+          <div>
+            <span className="mu">Invoice · {inv.fy}</span>
+            <h2 className="t">{inv.no}</h2>
+          </div>
         </div>
         <span className="row">
           <Pill v={inv.status} />
@@ -1341,16 +1715,13 @@ function InvoiceView({ c, id }) {
 // Overview page
 // ============================================================
 
-const money0 = (n) =>
-  "₹" + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
-
 const MONTHS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
 
-const Ring = ({ v }) => {
+const Ring = ({ v, size = 38 }) => {
   const r = 15,
     len = 2 * Math.PI * r;
   return (
-    <svg width="44" height="44" viewBox="0 0 40 40">
+    <svg width={size} height={size} viewBox="0 0 40 40">
       <circle className="rg-bg" cx="20" cy="20" r={r} />
       <circle
         className="rg-fg"
@@ -1366,13 +1737,32 @@ const Ring = ({ v }) => {
   );
 };
 
+// Sizes itself to whatever container it sits in, so the chart always fills the card
 function LineChart({ vals, labels }) {
-  const W = 600,
-    H = 230,
+  const ref = useRef(null);
+  const [sz, setSz] = useState({ w: 600, h: 190 });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect;
+      if (r.width > 0 && r.height > 0) {
+        setSz({ w: Math.round(r.width), h: Math.round(r.height) });
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const W = sz.w,
+    H = sz.h,
     pl = 54,
     pr = 16,
-    pt = 14,
-    pb = 30;
+    pt = 12,
+    pb = 28;
   const mx = Math.max(...vals, 1);
   const rough = mx / 4,
     mag = Math.pow(10, Math.floor(Math.log10(rough))),
@@ -1392,28 +1782,30 @@ function LineChart({ vals, labels }) {
   const ticks = Array.from({ length: n + 1 }, (_, i) => step * i);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
-      {ticks.map((v) => (
-        <g key={v}>
-          <line className="ch-grid" x1={pl} x2={W - pr} y1={y(v)} y2={y(v)} />
-          <text className="ch-lbl" x={pl - 8} y={y(v) + 4} textAnchor="end">{lbl(v)}</text>
-        </g>
-      ))}
-      <path className="ch-area" d={area} />
-      <path className="ch-line" d={line} />
-      {pts.map((q, i) => (
-        <circle key={i} className="ch-dot" cx={q[0]} cy={q[1]} r="3.5">
-          <title>{labels[i]}: {money(vals[i])}</title>
-        </circle>
-      ))}
-      {labels.map((l, i) => (
-        <text key={l} className="ch-lbl" x={x(i)} y={H - 8} textAnchor="middle">{l}</text>
-      ))}
-    </svg>
+    <div ref={ref} className="chartbox">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+        {ticks.map((v) => (
+          <g key={v}>
+            <line className="ch-grid" x1={pl} x2={W - pr} y1={y(v)} y2={y(v)} />
+            <text className="ch-lbl" x={pl - 8} y={y(v) + 4} textAnchor="end">{lbl(v)}</text>
+          </g>
+        ))}
+        <path className="ch-area" d={area} />
+        <path className="ch-line" d={line} />
+        {pts.map((q, i) => (
+          <circle key={i} className="ch-dot" cx={q[0]} cy={q[1]} r="3.5">
+            <title>{labels[i]}: {money(vals[i])}</title>
+          </circle>
+        ))}
+        {labels.map((l, i) => (
+          <text key={l} className="ch-lbl" x={x(i)} y={H - 8} textAnchor="middle">{l}</text>
+        ))}
+      </svg>
+    </div>
   );
 }
 
-function Overview({ c, setModal, prog, pstat }) {
+function Overview({ c, setModal, prog }) {
   const { s, go } = c;
   const invs = s.invoices || [];
   const live = invs.filter((i) => i.status !== "Draft");
@@ -1424,18 +1816,17 @@ function Overview({ c, setModal, prog, pstat }) {
 
   const sum = (arr) => arr.reduce((a, i) => a + i.total, 0);
   const ym = isoOf(new Date()).slice(0, 7);
-  const pj = s.projects.map(pstat);
+
   const stats = [
-    ["FileText", "Invoices This Month", live.filter((i) => i.date.startsWith(ym)).length],
+    ["FileText", "Invoices This Month", money0(sum(live.filter((i) => i.date.startsWith(ym))))],
     [
       "Clock",
       "Outstanding",
       money0(sum(live.filter((i) => i.status === "Pending" || i.status === "Overdue"))),
     ],
-    ["Wallet", "Paid", money0(sum(live.filter((i) => i.status === "Paid")))],
     ["FolderKanban", "Total Projects", s.projects.length],
-    ["Zap", "In Progress", pj.filter((x) => x === "In Progress").length],
-    ["Check", "Completed", pj.filter((x) => x === "Completed").length],
+    ["UsersRound", "Total Team Members", allMembers(s.projects).length],
+    ["Eye", "Under Review", s.tasks.filter((t) => t.status === "Review").length],
   ];
 
   const st0 = Number(fy.slice(3, 7));
@@ -1477,14 +1868,7 @@ function Overview({ c, setModal, prog, pstat }) {
     <div className="grid ovw">
       <h2 className="t">Overview</h2>
 
-      <div className="g6">
-        {stats.map(([ic, a, b]) => (
-          <div key={a} className="card stat sm">
-            <i className="ic"><Icon n={ic} s={20} /></i>
-            <div><span>{a}</span><b>{b}</b></div>
-          </div>
-        ))}
-      </div>
+      <Metrics items={stats} />
 
       <div className="ovmid">
         <div className="card">
@@ -1553,6 +1937,200 @@ function Overview({ c, setModal, prog, pstat }) {
   );
 }
 
+// Profile page: round photo with an edit button, then the account details (editable)
+function Profile({ c }) {
+  const u = c.u;
+  const [show, setShow] = useState(false),
+    [edit, setEdit] = useState(false),
+    [err, setErr] = useState(""),
+    [f, setF] = useState({ name: "", phone: "", email: "", user: "", pw: "" });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  const pick = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      c.toast("Please choose an image file");
+      return;
+    }
+    const rd = new FileReader();
+    rd.onload = () => {
+      c.up((d) => {
+        d.user.photo = rd.result;
+      });
+      c.toast("Profile photo updated");
+    };
+    rd.readAsDataURL(file);
+  };
+
+  const start = () => {
+    setF({
+      name: u.name || "",
+      phone: u.phone || "",
+      email: u.email || "",
+      user: u.user || "",
+      pw: u.pw || "",
+    });
+    setErr("");
+    setShow(false);
+    setEdit(true);
+  };
+
+  const save = (e) => {
+    e.preventDefault();
+    const name = f.name.trim(),
+      phone = f.phone.trim(),
+      email = f.email.trim(),
+      user = f.user.trim();
+    if (!name) {
+      return setErr("Enter your name.");
+    }
+    if (!phone) {
+      return setErr("Enter your phone number.");
+    }
+    if (!email) {
+      return setErr("Enter your email.");
+    }
+    if (user.length < 3) {
+      return setErr("Username must be at least 3 characters.");
+    }
+    if (f.pw.length < 6) {
+      return setErr("Password must be at least 6 characters.");
+    }
+    if (ACCS.some((x) => x.email !== u.email && (x.user === user || x.email === email))) {
+      return setErr("That username or email is already registered.");
+    }
+    const next = { name, phone, email, user, pw: f.pw };
+    ACCS = ACCS.map((x) => x.email === u.email ? { ...x, ...next } : x);
+    c.up((d) => {
+      d.user = { ...d.user, ...next };
+    });
+    setEdit(false);
+    setShow(false);
+    c.toast("Profile updated");
+  };
+
+  const rows = [
+    ["User", "Name", "name", "text", "Your full name"],
+    ["Phone", "Phone number", "phone", "tel", "Phone number"],
+    ["Mail", "Email", "email", "email", "name@example.com"],
+    ["AtSign", "Username", "user", "text", "Username"],
+  ];
+  const pw = u.pw || "";
+
+  return (
+    <div className="grid fit">
+      <PageHead c={c} title="Profile" />
+      <div className="profwrap">
+        <div className="card pcard">
+          <div className="pbanner" />
+          {!edit && (
+            <button type="button" className="pedit" onClick={start}>
+              <Icon n="Pencil" s={16} />
+              Edit profile
+            </button>
+          )}
+          <div className="pavwrap">
+            <div className="pavbig">
+              {u.photo ? <img src={u.photo} alt="" /> : <span>{ini(u.name)}</span>}
+            </div>
+            <label className="avedit" title="Edit profile photo">
+              <Icon n="Camera" s={18} />
+              <input type="file" accept="image/*" hidden onChange={pick} />
+            </label>
+          </div>
+          <form className="pflist" onSubmit={save}>
+            {rows.map(([ic, k, key, type, ph]) => (
+              <div key={key} className="pfrow">
+                <i className="ic"><Icon n={ic} s={20} /></i>
+                <div>
+                  <span className="pfl">{k}</span>
+                  {edit
+                    ? (
+                      <input
+                        type={type}
+                        placeholder={ph}
+                        value={f[key]}
+                        onChange={set(key)}
+                      />
+                    )
+                    : <span className="pfv">{u[key] || "—"}</span>}
+                </div>
+              </div>
+            ))}
+            <div className="pfrow">
+              <i className="ic"><Icon n="Lock" s={20} /></i>
+              <div>
+                <span className="pfl">Password</span>
+                {edit
+                  ? (
+                    <input
+                      type={show ? "text" : "password"}
+                      placeholder="At least 6 characters"
+                      value={f.pw}
+                      onChange={set("pw")}
+                    />
+                  )
+                  : (
+                    <span className={"pfv" + (show ? "" : " dots")}>
+                      {show ? (pw || "—") : "•".repeat(Math.max(pw.length, 8))}
+                    </span>
+                  )}
+              </div>
+              <button
+                type="button"
+                className="eye"
+                aria-label={show ? "Hide password" : "Show password"}
+                onClick={() => setShow(!show)}
+              >
+                <Icon n={show ? "EyeOff" : "Eye"} s={18} />
+              </button>
+            </div>
+            {edit && (
+              <>
+                {err && <div className="err" style={{ marginTop: 6 }}>{err}</div>}
+                <div className="pacts">
+                  <button
+                    type="button"
+                    className="btn sec"
+                    onClick={() => {
+                      setEdit(false);
+                      setShow(false);
+                      setErr("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button className="btn">Save changes</button>
+                </div>
+              </>
+            )}
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Pages that must never scroll as a whole (only their inner lists scroll)
+const FIT_PAGES = [
+  "profile",
+  "invoice",
+  "invoicenew",
+  "project",
+  "projd",
+  "team",
+  "task",
+  "taskd",
+  "board",
+  "chat",
+  "dm",
+  "notif",
+];
+
 function App() {
   const [s, setS] = useState(load),
     [route, setRoute] = useState({ p: "overview" }),
@@ -1566,24 +2144,8 @@ function App() {
     [mf, setMf] = useState("All");
   const setToast = showToast;
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(K, JSON.stringify(s));
-    } catch (e) {}
-  }, [s]);
-  const [side, setSide] = useState(() => {
-    try {
-      return localStorage.getItem("wf_admin_side") === "1";
-    } catch (e) {
-      return false;
-    }
-  });
+  const [side, setSide] = useState(false);
   const profRef = useRef(null);
-  useEffect(() => {
-    try {
-      localStorage.setItem("wf_admin_side", side ? "1" : "0");
-    } catch (e) {}
-  }, [side]);
 
   useEffect(() => {
     if (!dd) {
@@ -1671,16 +2233,6 @@ function App() {
   ];
 
   const unread = s.notifs.filter((n) => n.un).length;
-  const BackBtn = () =>
-    route.p === "overview"
-      ? null
-      : (
-        <button className="btn sec sm back" onClick={back}>
-          <Icon n="ArrowLeft" s={16} />
-          {" "}
-          Back
-        </button>
-      );
   const mems = (pj) => {
     const p = s.projects.find((x) => x.name === pj);
     return p ? p.members : [];
@@ -1723,7 +2275,7 @@ function App() {
                 up((d) => {
                   d.tasks.unshift({
                     ...T(id, f.title, f.project, as, u.name, f.priority, f.due, "To Do"),
-                    desc: f.desc || "Assigned task.",
+                    desc: f.desc.trim() || "Assigned task.",
                     checklist: f.items.map((t) => ({ t, done: false })),
                   });
                   note(d, `${u.name} assigned you ${id}`, "Task Assigned", id);
@@ -1977,55 +2529,10 @@ function App() {
     );
   };
 
-  const Reassign = ({ t }) => {
-    const [q, setQ] = useState("");
-    const ms = mems(t.project).filter((m) =>
-      m !== t.assignee && m.toLowerCase().includes(q.toLowerCase()));
-
-    return (
-      <Modal title={"Reassign Task · " + t.id} onClose={() => setModal(null)}>
-        <div className="mu">{t.title}<br />Currently with <b>{t.assignee}</b></div>
-        <div className="search" style={{ maxWidth: "none" }}>
-          <span><Icon n="Search" s={18} /></span>
-          <input
-            autoFocus
-            placeholder="Search team members…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
-        <div className="plist">
-          {ms.map((m) => (
-            <div key={m} className="prow">
-              <span className="row"><span className="avatar">{ini(m)}</span>{m}</span>
-              <button
-                className="btn sm"
-                onClick={() => {
-                  up((d) => {
-                    const k = d.tasks.find((x) => x.id === t.id);
-                    k.assignee = m;
-                    log(d, t.id, `Reassigned from ${t.assignee} to ${m} by ${u.name}`);
-                    note(d, `${t.id} reassigned to ${m}`, "Task Assigned", t.id);
-                  });
-
-                  setModal(null);
-                  setToast("Reassigned to " + m);
-                }}
-              >
-                Reassign
-              </button>
-            </div>
-          ))}
-          {!ms.length && <span className="mu">No matching members.</span>}
-        </div>
-      </Modal>
-    );
-  };
-
   const TeamModal = ({ x }) => (
     <Modal title={x.team + " · " + x.name} onClose={() => setModal(null)}>
       <div className="mu">Lead: {x.lead}</div>
-      {x.members.map((m, i) => {
+      {x.members.map((m) => {
         const ct = s.tasks.find((t) =>
           t.assignee === m && t.project === x.name && t.status === "In Progress");
 
@@ -2035,7 +2542,7 @@ function App() {
               <span className="avatar">{ini(m)}</span>
               <span>{m}<br /><small className="mu">{ct ? ct.title : "No active task"}</small></span>
             </span>
-            <small className="mu">{["Online", "Away", "Offline"][(i + m.length) % 3]}</small>
+            <small className="mu">{presence(m, u.name)}</small>
           </div>
         );
       })}
@@ -2043,134 +2550,103 @@ function App() {
     </Modal>
   );
 
+  // Task details: clean label/value layout. Review tasks get the lead's report beside it.
   const TaskDetail = () => {
     const t = s.tasks.find((x) => x.id === route.id);
     if (!t) {
-      return <div className="card">Task not found.</div>;
+      return (
+        <div className="grid fit">
+          <PageHead c={c} title="Task Details" />
+          <div className="card">Task not found.</div>
+        </div>
+      );
     }
+    const team = (s.projects.find((x) => x.name === t.project) || {}).team || "—";
+    const inReview = t.status === "Review";
+    const reps = [...(t.reports || [])].reverse();
+
+    const person = (n) => (
+      <span className="who">
+        <span className="avatar">{ini(n)}</span>
+        {n}
+      </span>
+    );
+    const cell = (k, v) => (
+      <div className="tdcell">
+        <span className="cap">{k}</span>
+        <div>{v}</div>
+      </div>
+    );
+    const field = (k, v, full) => (
+      <div className={"kv" + (full ? " full" : "")}>
+        <span className="cap">{k}</span>
+        <div>{v}</div>
+      </div>
+    );
 
     return (
-      <div className="grid">
-        <div className="card">
-          <div className="row sp">
-            <div>
-              <span className="mu">{t.id} · {t.project}</span>
-              <h2 style={{ margin: "4px 0" }}>{t.title}</h2>
+      <div className="grid fit">
+        <PageHead c={c} title="Task Details" />
+        <div className={"tdrow " + (inReview ? "two" : "one")}>
+          <div className="card tdc dc">
+            <div className="tdtop">
+              <span className="tdid">{t.id}</span>
+              <Pill v={t.status} />
             </div>
-            <span className="row"><Pill v={t.priority} /><Pill v={t.status} /></span>
+            <h3 className="tdtitle">{t.title}</h3>
+            <p className="tddesc">{t.desc || "—"}</p>
+            <div className="tdgrid">
+              {cell("Project", t.project)}
+              {cell("Team", team)}
+              {cell("Assigned By", person(t.by))}
+              {cell("Assigned To", person(t.assignee))}
+              {cell("Priority", <Pill v={t.priority} />)}
+              {cell("Due Date", t.due)}
+            </div>
           </div>
-          <p>{t.desc}</p>
-          <div className="row mu">
-            Assigned by
-            {" "}
-            <b>{t.by}</b>
-            {" "}
-            · Assignee
-            {" "}
-            <b>{t.assignee}</b>
-            {" "}
-            · Due
-            {" "}
-            <b>{t.due}</b>
-          </div>
-          {canRe(t) && (
-            <button
-              className="btn sec sm"
-              style={{ marginTop: 10 }}
-              onClick={() => setModal({ k: "reassign", t })}
-            >
-              Reassign Task
-            </button>
+
+          {inReview && (
+            <div className="card tdc rc">
+              <div className="tdtop">
+                <span className="tdid">Team Lead Report</span>
+                {reps.length > 0 && <small className="mu">{reps[0].at || ""}</small>}
+              </div>
+              {!reps.length
+                ? <div className="emptyrep">No report has been submitted yet.</div>
+                : (
+                  <div className="repscr">
+                    {reps.map((r, i) => (
+                      <div key={i} className="rep">
+                        <div className="kvg">
+                          {field("Category", r.cat ? <Pill v={r.cat} /> : "—")}
+                          {field("Submitted By", person(r.by || t.assignee))}
+                          {field("Report Description", r.desc || "—", true)}
+                          {field("Progress Summary", r.sum || r.summary || r.progress || "—", true)}
+                          {field("Blockers / Issues", r.block || "—", true)}
+                          {field("Recommended Action", r.act || "—", true)}
+                          {field(
+                            "Attachment",
+                            r.file || r.attachment
+                              ? (
+                                <span className="row">
+                                  <Icon n="Paperclip" s={16} />
+                                  {r.file || r.attachment}
+                                </span>
+                              )
+                              : "No attachment",
+                            true,
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+            </div>
           )}
-        </div>
-        <div className="card">
-          <div className="row sp">
-            <b>Checklist</b>
-            <span className="mu">
-              {(t.checklist || []).filter((x) => x.done).length}/{(t.checklist || []).length}
-            </span>
-          </div>
-          {(t.checklist || []).map((it, i) => (
-            <label key={i} className="ckrow">
-              <input
-                type="checkbox"
-                checked={it.done}
-                onChange={() =>
-                  up((d) => {
-                    const k = d.tasks.find((x) => x.id === t.id);
-                    k.checklist[i].done = !k.checklist[i].done;
-                  })}
-              />
-              <span className={it.done ? "done" : ""}>{it.t}</span>
-            </label>
-          ))}
-          {!(t.checklist || []).length && <span className="mu">No checklist items.</span>}
-        </div>
-        <div className="grid g2">
-          <div className="card">
-            <b>Time Spent</b>
-            <div className="timer">{fmt(t.secs)}</div>
-            <span className="mu">Logged by {t.assignee}</span>
-          </div>
-          <div className="card">
-            <b>Review &amp; Reports</b>
-            {t.status === "Review" && (
-              <div className="row" style={{ margin: "8px 0" }}>
-                <button
-                  className="btn"
-                  onClick={() => {
-                    up((d) => {
-                      d.tasks.find((x) => x.id === t.id).status = "Completed";
-                      log(d, t.id, "Approved by " + u.name);
-                      note(d, `${t.id} approved`, "Task Review", t.id);
-                    });
-                    setToast("Approved");
-                  }}
-                >
-                  Approve
-                </button>
-                <button
-                  className="btn sec"
-                  onClick={() => {
-                    up((d) => {
-                      d.tasks.find((x) => x.id === t.id).status = "In Progress";
-                      log(d, t.id, "Changes requested by " + u.name);
-                      note(d, `Changes requested on ${t.id}`, "Task Review", t.id);
-                    });
-                    setToast("Changes requested");
-                  }}
-                >
-                  Request Changes
-                </button>
-              </div>
-            )}
-            {t.reports.map((r, i) => (
-              <div key={i} className="log">
-                <b>{r.cat}</b>
-                {" "}
-                ·
-                {" "}
-                {r.at}
-                <br />
-                {r.desc}
-                {r.block && <><br />Blockers: {r.block}</>}
-                {r.act && <><br />Action: {r.act}</>}
-              </div>
-            ))}
-            {!t.reports.length && <span className="mu">No reports.</span>}
-          </div>
-        </div>
-        <div className="card">
-          <b>Activity History</b>
-          {[...t.log].reverse().map((l, i) => (
-            <div key={i} className="log"><small className="mu">{l.t}</small><br />{l.txt}</div>
-          ))}
         </div>
       </div>
     );
   };
-
-  const canRe = (t) => t.status !== "Completed";
 
   const TaskTable = ({ list, size }) => (
     <div className={"card tbl " + (size || "")}>
@@ -2210,7 +2686,7 @@ function App() {
   const p = route.p;
 
   if (p === "overview") {
-    page = <Overview c={c} setModal={setModal} prog={prog} pstat={pstat} />;
+    page = <Overview c={c} setModal={setModal} prog={prog} />;
   }
 
   if (p === "invoice") {
@@ -2227,13 +2703,26 @@ function App() {
   }
 
   if (p === "project") {
+    const pj = projects.map(pstat);
+    const pm = [
+      ["FolderKanban", "Total Projects", projects.length],
+      ["Zap", "In Progress", pj.filter((x) => x === "In Progress").length],
+      ["Clock", "Pending", pj.filter((x) => x === "Pending").length],
+      ["Check", "Completed", pj.filter((x) => x === "Completed").length],
+    ];
+
     page = (
-      <div className="grid">
-        <div className="row sp">
-          <h2 className="t">Projects</h2>
-          <button className="btn" onClick={() => setModal({ k: "proj" })}>              + Create Project            </button>
-        </div>
-        <ProjList projects={projects} prog={prog} pstat={pstat} go={go} s={s} />
+      <div className="grid fit">
+        <PageHead c={c} title="Projects" />
+        <Metrics items={pm} />
+        <ProjList
+          projects={projects}
+          prog={prog}
+          pstat={pstat}
+          go={go}
+          s={s}
+          onCreate={() => setModal({ k: "proj" })}
+        />
       </div>
     );
   }
@@ -2242,9 +2731,15 @@ function App() {
     const x = s.projects.find((y) => y.id === route.id);
 
     page = !x
-      ? <div className="card">Not found.</div>
+      ? (
+        <div className="grid fit">
+          <PageHead c={c} title="Project" />
+          <div className="card">Not found.</div>
+        </div>
+      )
       : (
-        <div className="grid">
+        <div className="grid fit">
+          <PageHead c={c} title="Project Details" />
           <div className="card">
             <div className="row sp">
               <div>
@@ -2275,14 +2770,19 @@ function App() {
       (mf === "All" || x.team === mf) &&
         (x.team + x.name + x.lead + x.members.join(" ")).toLowerCase().includes(mq.toLowerCase()));
 
+    const ppl = allMembers(projects);
+    const online = ppl.filter((m) => presence(m, u.name) === "Online").length;
+    const tm = [
+      ["UsersRound", "Total Team", new Set(projects.map((x) => x.team)).size],
+      ["UserPlus", "Total Members", ppl.length],
+      ["UserCheck", "Active", online],
+      ["UserX", "Offline", ppl.length - online],
+    ];
+
     page = (
-      <div className="grid">
-        <div className="row sp">
-          <h2 className="t">Teams</h2>
-          <button className="btn" onClick={() => setModal({ k: "assign" })}>
-              + Assign Task
-            </button>
-        </div>
+      <div className="grid fit">
+        <PageHead c={c} title="Teams" />
+        <Metrics items={tm} />
         <div className="toolbar">
           <div className="search">
             <span><Icon n="Search" s={18} /></span>
@@ -2296,6 +2796,10 @@ function App() {
             <option value="All">All teams</option>
             {[...new Set(projects.map((x) => x.team))].map((x) => <option key={x}>{x}</option>)}
           </select>
+          <button className="btn" onClick={() => setModal({ k: "assign" })}>
+            <Icon n="Plus" s={18} />
+            Assign Task
+          </button>
         </div>
         <div className="card tbl fix">
           <table>
@@ -2305,7 +2809,7 @@ function App() {
                 <th>Project</th>
                 <th>Lead</th>
                 <th>Members</th>
-                <th>Active tasks</th>
+                <th>Tasks</th>
                 <th>Progress</th>
               </tr>
             </thead>
@@ -2327,7 +2831,7 @@ function App() {
                       {" "}
                       <small className="mu">{x.members.length}</small>
                     </td>
-                    <td>{ts.filter((t) => t.status !== "Completed").length}</td>
+                    <td><b>{ts.length}</b></td>
                     <td style={{ minWidth: 110 }}><Bar v={prog(x)} /></td>
                   </tr>
                 );
@@ -2346,14 +2850,19 @@ function App() {
         (tp === "All" || t.priority === tp) &&
         (t.id + t.title + t.project + t.assignee).toLowerCase().includes(tq.toLowerCase()));
 
+    const cnt = (x) => tasks.filter((t) => t.status === x).length;
+    const km = [
+      ["ListTodo", "Total Tasks", tasks.length],
+      ["Square", "To Do", cnt("To Do")],
+      ["Zap", "In Progress", cnt("In Progress")],
+      ["Check", "Completed", cnt("Completed")],
+      ["Eye", "Review", cnt("Review")],
+    ];
+
     page = (
-      <div className="grid">
-        <div className="row sp">
-          <h2 className="t">Tasks</h2>
-          <button className="btn" onClick={() => setModal({ k: "assign" })}>
-              + Assign Task
-            </button>
-        </div>
+      <div className="grid fit">
+        <PageHead c={c} title="Tasks" />
+        <Metrics items={km} />
         <div className="toolbar">
           <div className="search">
             <span><Icon n="Search" s={18} /></span>
@@ -2373,6 +2882,10 @@ function App() {
               <option key={x} value={x}>{x === "All" ? "All priorities" : x}</option>
             ))}
           </select>
+          <button className="btn" onClick={() => setModal({ k: "assign" })}>
+            <Icon n="Plus" s={18} />
+            Assign Task
+          </button>
         </div>
         <TaskTable list={fl} size="fix" />
       </div>
@@ -2385,8 +2898,8 @@ function App() {
 
   if (p === "board") {
     page = (
-      <div className="grid">
-        <h2 className="t" style={{ margin: 0 }}>Team Board</h2>
+      <div className="grid fit">
+        <PageHead c={c} title="Team Board" />
         <div className="kan">
           {ST.map((col) => (
             <div key={col} className="col">
@@ -2418,13 +2931,17 @@ function App() {
     );
   }
 
+  if (p === "profile") {
+    page = <Profile c={c} />;
+  }
+
   if (p === "chat" || p === "dm") {
     page = <Chat key={p} c={c} kind={p} />;
   }
 
   if (p === "notif") {
     page = (
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card notifp" style={{ padding: 0 }}>
         <div className="row sp" style={{ padding: 12 }}>
           <b>Notifications ({unread} unread)</b>
           <button className="link" onClick={() => up((d) => d.notifs.forEach((n) => n.un = false))}>
@@ -2513,19 +3030,9 @@ function App() {
         <div className="prof" ref={profRef}>
           {dd && (
               <div className="dd">
-                <b>{u.name}</b>
-                <br />
-                <small className="mu">{u.email}</small>
-                <br />
-                <small className="mu">Administrator</small>
-                <hr />
-                <button
-                  onClick={() => {
-                    setDd(false);
-                    setToast("Profile: " + u.name + " · " + u.email);
-                  }}
-                >
-                  Profile Settings
+                <button onClick={() => go({ p: "profile" })}>
+                  <Icon n="User" s={18} />
+                  Profile
                 </button>
                 <button
                   onClick={() => {
@@ -2537,6 +3044,7 @@ function App() {
                     setDd(false);
                   }}
                 >
+                  <Icon n="LogOut" s={18} />
                   Logout
                 </button>
               </div>
@@ -2547,16 +3055,28 @@ function App() {
             data-tip={dd || side ? undefined : u.name}
             onClick={() => setDd(!dd)}
           >
-            <span className="pav">{ini(u.name)}</span>
+            <span className="pav">
+              {u.photo ? <img src={u.photo} alt="" /> : ini(u.name)}
+            </span>
             {side && <span className="pn"><b>{u.name}</b><small>Admin</small></span>}
           </button>
         </div>
       </aside>
       <main className="main">
-        <div className="page" key={JSON.stringify(route)}><BackBtn />{page}</div>
+        <div
+          className={"page" + (FIT_PAGES.includes(p) ? " fit" : "")}
+          key={JSON.stringify(route)}
+        >
+          {["chat", "dm", "notif"].includes(p) && (
+            <PageHead
+              c={c}
+              title={p === "chat" ? "Team Chat" : p === "dm" ? "Direct Message" : "Notifications"}
+            />
+          )}
+          {page}
+        </div>
       </main>
       {modal?.k === "assign" && <Assign />}
-      {modal?.k === "reassign" && <Reassign t={modal.t} />}
       {modal?.k === "team" && <TeamModal x={modal.x} />}
       {modal?.k === "proj" && <NewProject />}
       <ToastHost />
@@ -2564,7 +3084,7 @@ function App() {
   );
 }
 
-function ProjList({ projects, prog, pstat, go, s }) {
+function ProjList({ projects, prog, pstat, go, s, onCreate }) {
   const [q, setQ] = useState(""),
     [st, setSt] = useState("All");
   const l = projects.filter((p) =>
@@ -2587,6 +3107,10 @@ function ProjList({ projects, prog, pstat, go, s }) {
             <option key={x}>{x}</option>
           ))}
         </select>
+        <button className="btn" onClick={onCreate}>
+          <Icon n="Plus" s={18} />
+          Create Project
+        </button>
       </div>
       <div className="card tbl fix">
         <table>
@@ -2609,7 +3133,7 @@ function ProjList({ projects, prog, pstat, go, s }) {
               return (
                 <tr key={p.id} className="cl" onClick={() => go({ p: "projd", id: p.id })}>
                   <td>{p.id}</td>
-                  <td><b>{p.name}</b><br /><small className="mu">{p.desc}</small></td>
+                  <td><b>{p.name}</b></td>
                   <td>{p.team}</td>
                   <td>{p.lead}</td>
                   <td>{t.filter((x) => x.status === "Completed").length}/{t.length}</td>

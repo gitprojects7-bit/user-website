@@ -1515,7 +1515,6 @@ table .pill {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 14px;
-  /* extra room below the metric cards (every page) */
   margin-bottom: 10px;
 }
 
@@ -1864,7 +1863,7 @@ table .pill {
   grid-column: 1 / -1;
 }
 
-/* checklist scrolls inside the left card */
+
 .td-page .td-check {
   columns: auto;
   display: flex;
@@ -1878,7 +1877,7 @@ table .pill {
   flex: none;
 }
 
-/* right card: timer stays fixed, only activity history scrolls */
+
 .td-right .td-time {
   flex: none;
   padding-bottom: 12px;
@@ -1911,7 +1910,7 @@ table .pill {
   display: block;
 }
 
-/* "No ... yet" messages centered inside the fixed container */
+
 .td-empty {
   margin: auto;
   text-align: center;
@@ -1932,9 +1931,7 @@ table .pill {
 }
 
 
-/* ============================================================
-   Bigger Report button (lead task details)
-   ============================================================ */
+
 
 .btn.report {
   padding: 13px 30px;
@@ -1950,7 +1947,7 @@ table .pill {
 }
 
 /* ============================================================
-   Employee overview: fixed layout
+   Employee overview
    ============================================================ */
 
 .eo-page {
@@ -2023,7 +2020,7 @@ table .pill {
   text-align: center;
 }
 
-/* compact quick actions so all 3 fit in the shorter card */
+
 .eo-quick .lo-quick {
   flex: 1;
   min-height: 0;
@@ -2044,7 +2041,7 @@ table .pill {
   border-radius: 11px;
 }
 
-/* upcoming tasks: fills the remaining height, scrolls inside */
+
 .eo-page .eo-up {
   display: flex;
   flex-direction: column;
@@ -2059,7 +2056,7 @@ table .pill {
 }
 
 /* ============================================================
-   Employee task details: 2 fixed containers
+   Employee task details
    ============================================================ */
 
 .td-page.emp {
@@ -2130,7 +2127,7 @@ table .pill {
 }
 
 /* ============================================================
-   Sign in page: premium animated background
+   Sign in page
    ============================================================ */
 
 .auth .bg {
@@ -2141,7 +2138,7 @@ table .pill {
   z-index: 0;
 }
 
-/* soft blurred colour orbs that drift slowly */
+
 .auth .orb {
   position: absolute;
   border-radius: 50%;
@@ -2179,7 +2176,7 @@ table .pill {
   animation-delay: -11s;
 }
 
-/* glass curves in the corners */
+
 .auth .curve {
   position: absolute;
   border-radius: 50%;
@@ -2223,7 +2220,7 @@ table .pill {
   animation-delay: -2s;
 }
 
-/* dotted grid that lights up around the cursor */
+
 .auth .grid-dots {
   position: absolute;
   inset: 0;
@@ -2233,7 +2230,7 @@ table .pill {
   mask-image: radial-gradient(circle 260px at var(--mx) var(--my), #000, transparent 100%);
 }
 
-/* soft spotlight that follows the cursor */
+
 .auth .glow {
   position: absolute;
   width: 560px;
@@ -2263,9 +2260,6 @@ table .pill {
   }
 }
 
-/* ============================================================
-   Scrollbars: one slim style everywhere, inset from the edge
-   ============================================================ */
 
 *::-webkit-scrollbar {
   width: 14px;
@@ -2308,7 +2302,7 @@ table .pill {
   background: transparent;
 }
 
-/* lists with a sticky header: start the scrollbar under the header */
+
 .tbl::-webkit-scrollbar-track:vertical {
   margin-top: 42px;
 }

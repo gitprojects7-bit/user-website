@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import {
   ArrowLeft,
   AtSign,
@@ -36,20 +36,215 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import "./style.css";
 
+
 // ============================================================
-// Constants and demo data
+// 1. TypeScript models
 // ============================================================
 
-const WS = {
+
+export type WorkspaceId = "tt" | "tm";
+
+export type TaskStatus = "To Do" | "In Progress" | "Stopped" | "Reassigned" | "Review" | "Completed";
+export type TaskPriority = "High" | "Medium" | "Low";
+export type ProjectStatus = "Pending" | "In Progress" | "Completed";
+
+export interface UserAccount {
+  name: string;
+  addr?: string;
+  phone: string;
+  email: string;
+  user: string; 
+  pw: string;
+  ws: WorkspaceId[];
+  photo?: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  desc: string;
+  lead: string;
+  team: string;
+ 
+  members: string[];
+  due: string;
+}
+
+export interface ChecklistItem {
+  t: string;
+  done: boolean;
+}
+
+
+export interface TaskLogEntry {
+  t: string;
+  txt: string;
+}
+
+
+export interface TaskReport {
+  cat: string;
+  desc: string;
+  prog: string;
+  block: string;
+  act: string;
+  att: string;
+  at: string;
+  by: string;
+  status: TaskStatus;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  project: string;
+  assignee: string;
+  by: string;
+  priority: TaskPriority;
+  due: string;
+  status: TaskStatus;
+  desc: string;
+  secs: number;
+  log: TaskLogEntry[];
+  reports: TaskReport[];
+  checklist: ChecklistItem[];
+  completedAt?: string;
+}
+
+
+export interface TimerSession {
+  id: string;
+  start: number;
+}
+
+export interface ChatMessage {
+  u: string;
+  x: string;
+  t: string;
+}
+
+export interface AppNotification {
+  id: number;
+  ws: WorkspaceId;
+  txt: string;
+  cat: string;
+  task?: string;
+  un: boolean;
+  t: string;
+}
+
+
+export interface Attachment {
+  name: string;
+  url?: string;
+}
+
+export interface TimeLog {
+  taskId: string;
+  seconds: number;
+  description?: string;
+  loggedAt: string;
+}
+
+export interface AppState {
+  user: UserAccount | null;
+  ws: WorkspaceId | null;
+  timer: TimerSession | null;
+  projects: Project[];
+  tasks: Task[];
+  msgs: Record<string, ChatMessage[]>;
+  notifs: AppNotification[];
+}
+
+type Updater = (fn: (d: AppState) => void) => void;
+
+interface Route {
+  p: PageId;
+  id?: string;
+}
+
+type PageId =
+  | "overview"
+  | "project"
+  | "projd"
+  | "team"
+  | "task"
+  | "taskd"
+  | "chat"
+  | "dm"
+  | "notif"
+  | "profile";
+
+interface NoteModalState {
+  k: "note";
+  kind: "stopsave" | "complete";
+  t: Task;
+  at: number;
+}
+
+type ModalState =
+  | null
+  | { k: "assign"; project?: string }
+  | { k: "reassign"; t: Task }
+  | NoteModalState
+  | { k: "team"; x: Project }
+  | { k: "report"; t: Task };
+
+interface Ctx {
+  s: AppState;
+  up: Updater;
+  go: (r: Route) => void;
+  u: UserAccount;
+  toast: (m: string) => void;
+}
+
+type StatItem = [string, string | number, IconName];
+type QuickAction = [IconName, string, string, () => void];
+
+// ============================================================
+// 2. Constants and configuration
+// ============================================================
+
+const WS: Record<WorkspaceId, string> = {
   tt: "Team & task management",
   tm: "Task management",
 };
 
-// ============================================================
-// Icons (lucide-react)
-// ============================================================
+const WSD: Record<WorkspaceId, string> = {
+  tt: "Manage your teams, assign tasks, complete reviewed tasks and report to the Super Admin.",
+  tm: "View assigned projects and tasks, track time and submit work for review.",
+};
+
+const WSI: Record<WorkspaceId, IconName> = { tt: "UsersRound", tm: "User" };
+
+const WORKSPACE_IDS: WorkspaceId[] = ["tt", "tm"];
+
+const ST: TaskStatus[] = ["To Do", "In Progress", "Stopped", "Reassigned", "Review", "Completed"];
+
+
+const FRESH: TaskStatus[] = ["To Do", "Reassigned"];
+
+
+const DEMO: UserAccount = {
+  name: "ABC",
+  email: "abc@gmail.com",
+  phone: "+91 98765 43210",
+  user: "abc",
+  pw: "123456",
+  ws: ["tt", "tm"],
+};
+
+const DEMO_OTP = "123456";
+
+const STORAGE_KEYS = {
+  accounts: "wf_acc",
+  sidebar: "wf_side",
+};
+
+// ---- Icons (lucide-react) ----
 
 const LIB = {
   LayoutDashboard,
@@ -86,89 +281,79 @@ const LIB = {
   LogOut,
   Mail,
   Pencil,
-};
+} satisfies Record<string, LucideIcon>;
 
-function Icon({ n, s = 20 }) {
-  const C = LIB[n];
-  return C ? <C size={s} strokeWidth={1.8} /> : null;
-}
+type IconName = keyof typeof LIB;
 
-const WSD = {
-  tt: "Manage your teams, assign tasks, complete reviewed tasks and report to the Super Admin.",
-  tm: "View assigned projects and tasks, track time and submit work for review.",
-};
+// ============================================================
+// 3. Helper functions
+// ============================================================
 
-const WSI = { tt: "UsersRound", tm: "User" };
+const now = (): string => new Date().toLocaleString([], { dateStyle: "short", timeStyle: "short" });
 
-const ST = ["To Do", "In Progress", "Stopped", "Reassigned", "Review", "Completed"];
+const ini = (n: string): string => n.split(" ").map((x) => x[0]).join("").slice(0, 2);
 
-// "To Do" and "Reassigned" tasks have not been worked on yet
-const FRESH = ["To Do", "Reassigned"];
+const slug = (n: string): string => "#" + n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-const now = () => new Date().toLocaleString([], { dateStyle: "short", timeStyle: "short" });
-
-const ini = (n) => n.split(" ").map((x) => x[0]).join("").slice(0, 2);
-
-const slug = (n) => "#" + n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-
-const fmt = (s) => {
-  s = Math.floor(s);
+/** Seconds -> HH:MM:SS */
+const fmt = (total: number): string => {
+  const s = Math.floor(total);
   const h = Math.floor(s / 3600),
     m = Math.floor(s % 3600 / 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 };
 
-// Accounts created through Sign Up are stored in localStorage (demo only)
-const readAccs = () => {
-  try {
-    return JSON.parse(localStorage.getItem("wf_acc") || "[]");
-  } catch (x) {
-    return [];
-  }
-};
+interface TaskSeedOptions {
+  status?: TaskStatus;
+  secs?: number;
+  
+  done?: number;
+  log?: [string, string][];
+}
 
-// Demo login details (also shown on the profile page)
-const DEMO = {
-  name: "ABC",
-  email: "abc@gmail.com",
-  phone: "+91 98765 43210",
-  user: "abc",
-  pw: "123456",
-  ws: ["tt", "tm"],
-};
 
-// Task helper. "o" = optional demo state: { status, secs, done (checklist items ticked), log: [[time, text]] }
-const T = (id, title, desc, project, assignee, by, priority, due, items, o = {}) =>
-  (
-    {
-      id,
-      title,
-      project,
-      assignee,
-      by,
-      priority,
-      due,
-      status: o.status || "To Do",
-      desc,
-      secs: o.secs || 0,
-      log: [
-        { t: "12/11/26, 09:00", txt: "Task assigned by " + by },
-        ...(o.log || []).map(([t, txt]) => ({ t, txt })),
-      ],
-      reports: [],
-      checklist: items.map((t, i) => ({ t, done: i < (o.done || 0) })),
-    }
-  );
+const makeTask = (
+  id: string,
+  title: string,
+  desc: string,
+  project: string,
+  assignee: string,
+  by: string,
+  priority: TaskPriority,
+  due: string,
+  items: string[],
+  o: TaskSeedOptions = {},
+): Task => ({
+  id,
+  title,
+  project,
+  assignee,
+  by,
+  priority,
+  due,
+  status: o.status || "To Do",
+  desc,
+  secs: o.secs || 0,
+  log: [
+    { t: "12/11/26, 09:00", txt: "Task assigned by " + by },
+    ...(o.log || []).map(([t, txt]) => ({ t, txt })),
+  ],
+  reports: [],
+  checklist: items.map((t, i) => ({ t, done: i < (o.done || 0) })),
+});
 
-// Projects are created by the Super Admin (separate web page).
-// "members" does NOT include the project lead (see the "lead" field).
-const seed = {
+// ============================================================
+// 4. Mock / demo data
+// ============================================================
+
+
+const createInitialState = (): AppState => ({
   user: null,
   ws: null,
-  // demo: TASK-1101 (Task management) is running
+ 
   timer: { id: "TASK-1101", start: Date.now() },
   projects: [
-    // ---- Projects of Team & task management ----
+   
     {
       id: "P-1",
       name: "Billing Platform",
@@ -196,7 +381,7 @@ const seed = {
       members: ["Chloe Bennett", "Alex Morgan"],
       due: "2026-11-15",
     },
-    // ---- Projects of Task management ----
+
     {
       id: "P-3",
       name: "HR Management",
@@ -226,8 +411,8 @@ const seed = {
     },
   ],
   tasks: [
-    // ============ Team & task management tasks (assigned by ABC) ============
-    T(
+  
+    makeTask(
       "TASK-1001",
       "Implement invoice export endpoint",
       "Build the CSV/PDF invoice export endpoint and update the team.",
@@ -249,7 +434,7 @@ const seed = {
         ],
       },
     ),
-    T(
+    makeTask(
       "TASK-1002",
       "Configure multi-currency billing",
       "Add multi-currency support with cached exchange rates.",
@@ -271,7 +456,7 @@ const seed = {
         ],
       },
     ),
-    T(
+    makeTask(
       "TASK-1003",
       "OAuth2 Google login",
       "Implement Google OAuth2 sign-in for the billing dashboard.",
@@ -293,7 +478,7 @@ const seed = {
         ],
       },
     ),
-    T(
+    makeTask(
       "TASK-1004",
       "Build tax rule engine",
       "Create a configurable tax rule engine for regional tax slabs.",
@@ -314,7 +499,7 @@ const seed = {
         ],
       },
     ),
-    T(
+    makeTask(
       "TASK-1005",
       "Push notification triggers",
       "Define and implement the push notification triggers for approvals.",
@@ -325,7 +510,7 @@ const seed = {
       "2026-11-28",
       ["List trigger events", "Configure FCM / APNs", "Test on TestFlight"],
     ),
-    T(
+    makeTask(
       "TASK-1006",
       "Approval screen UI",
       "Design and build the approval request screen for the mobile app.",
@@ -340,7 +525,7 @@ const seed = {
         log: [["16/11/26, 11:00", "Reassigned from Divya Iyer to Karan Mehta"]],
       },
     ),
-    T(
+    makeTask(
       "TASK-1007",
       "Portal login page",
       "Build the customer portal login and password reset pages.",
@@ -361,7 +546,7 @@ const seed = {
         ],
       },
     ),
-    T(
+    makeTask(
       "TASK-1008",
       "Invoice history page",
       "Show the customer invoice history with download links.",
@@ -383,8 +568,8 @@ const seed = {
       },
     ),
 
-    // ============ Task management tasks (assigned to ABC) ============
-    T(
+   
+    makeTask(
       "TASK-1101",
       "Build onboarding checklist wizard",
       "Create the step-by-step onboarding checklist wizard for new joiners.",
@@ -406,7 +591,7 @@ const seed = {
         ],
       },
     ),
-    T(
+    makeTask(
       "TASK-1102",
       "Leave balance report",
       "Generate the monthly leave balance report for all members.",
@@ -427,7 +612,7 @@ const seed = {
         ],
       },
     ),
-    T(
+    makeTask(
       "TASK-1103",
       "Payroll audit export",
       "Export the payroll audit trail for the finance team.",
@@ -449,7 +634,7 @@ const seed = {
         ],
       },
     ),
-    T(
+    makeTask(
       "TASK-1104",
       "Create ARR cohort chart",
       "Add the ARR cohort retention chart to the executive dashboard.",
@@ -460,7 +645,7 @@ const seed = {
       "2026-11-27",
       ["Prepare cohort data", "Build chart component", "Add tooltips and legend"],
     ),
-    T(
+    makeTask(
       "TASK-1105",
       "Funnel conversion widget",
       "Build the funnel conversion widget for the analytics dashboard.",
@@ -475,7 +660,7 @@ const seed = {
         log: [["17/11/26, 16:00", "Reassigned from Karan Mehta to ABC"]],
       },
     ),
-    T(
+    makeTask(
       "TASK-1106",
       "Ticket SLA dashboard",
       "Create the SLA tracking dashboard for support tickets.",
@@ -496,7 +681,7 @@ const seed = {
         ],
       },
     ),
-    T(
+    makeTask(
       "TASK-1107",
       "Customer feedback form",
       "Build the post-resolution customer feedback form.",
@@ -573,9 +758,71 @@ const seed = {
       t: "2h ago",
     },
   ],
+});
+
+// ============================================================
+// 5. API service layer
+// ============================================================
+
+interface WorkFlowDataSource {
+  loadInitialState(): AppState;
+  readAccounts(): UserAccount[];
+  saveAccounts(accounts: UserAccount[]): void;
+  readSidebarOpen(): boolean;
+  saveSidebarOpen(open: boolean): void;
+}
+
+const localDataSource: WorkFlowDataSource = {
+  loadInitialState: createInitialState,
+
+ 
+  readAccounts() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.accounts) || "[]") as UserAccount[];
+    } catch {
+      return [];
+    }
+  },
+
+  saveAccounts(accounts) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(accounts));
+    } catch {
+      
+    }
+  },
+
+  readSidebarOpen() {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.sidebar) === "1";
+    } catch {
+      return false;
+    }
+  },
+
+  saveSidebarOpen(open) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.sidebar, open ? "1" : "0");
+    } catch {
+      
+    }
+  },
 };
 
-function Modal({ title, onClose, children }) {
+const apiService: WorkFlowDataSource = localDataSource;
+
+const readAccs = (): UserAccount[] => apiService.readAccounts();
+
+// ============================================================
+// 6. Shared UI building blocks
+// ============================================================
+
+function Icon({ n, s = 20 }: { n: IconName; s?: number }) {
+  const C = LIB[n];
+  return C ? <C size={s} strokeWidth={1.8} /> : null;
+}
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="modal" onClick={onClose}>
       <div className="box" onClick={(e) => e.stopPropagation()}>
@@ -589,7 +836,7 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-function LiveTime({ t, timer }) {
+function LiveTime({ t, timer }: { t: Task; timer: TimerSession | null }) {
   const [, x] = useState(0);
   const on = !!timer && timer.id === t.id;
   useEffect(() => {
@@ -599,18 +846,64 @@ function LiveTime({ t, timer }) {
     const i = setInterval(() => x((n) => n + 1), 1000);
     return () => clearInterval(i);
   }, [on]);
-  return fmt(t.secs + (on ? (Date.now() - timer.start) / 1000 : 0));
+  return <>{fmt(t.secs + (on && timer ? (Date.now() - timer.start) / 1000 : 0))}</>;
 }
 
-const Pill = ({ v }) => <span className={"pill " + v.split(" ")[0]}>{v}</span>;
+const Pill = ({ v }: { v: string }) => <span className={"pill " + v.split(" ")[0]}>{v}</span>;
 
-const Bar = ({ v }) => <div className="bar"><i style={{ width: v + "%" }} /></div>;
+const Bar = ({ v }: { v: number }) => <div className="bar"><i style={{ width: v + "%" }} /></div>;
 
-function Auth({ c }) {
-  const [step, setStep] = useState("in"),
+// ---- Toast ----
+let toastFn: ((m: string) => void) | null = null;
+const showToast = (m: string): void => {
+  if (toastFn) {
+    toastFn(m);
+  }
+};
+
+function ToastHost() {
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    toastFn = setMsg;
+    return () => {
+      toastFn = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (!msg) {
+      return;
+    }
+    const t = setTimeout(() => setMsg(""), 2600);
+    return () => clearTimeout(t);
+  }, [msg]);
+  return msg ? <div className="toast">{msg}</div> : null;
+}
+
+// ============================================================
+// 7. Authentication
+// ============================================================
+
+type AuthStep = "in" | "details" | "otp" | "cred" | "ws";
+type AuthTextField = "id" | "pw" | "name" | "addr" | "phone" | "email" | "otp" | "user" | "pw1";
+
+interface AuthForm {
+  id: string;
+  pw: string;
+  name: string;
+  addr: string;
+  phone: string;
+  email: string;
+  otp: string;
+  user: string;
+  pw1: string;
+  ws: WorkspaceId[];
+}
+
+function Auth({ up }: { up: Updater }) {
+  const [step, setStep] = useState<AuthStep>("in"),
     [err, setErr] = useState(""),
     [sh, setSh] = useState(false);
-  const [f, setF] = useState({
+  const [f, setF] = useState<AuthForm>({
     id: "abc@gmail.com",
     pw: "123456",
     name: "",
@@ -622,30 +915,30 @@ function Auth({ c }) {
     pw1: "",
     ws: [],
   });
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const set = (k: AuthTextField) => (e: ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   const accs = readAccs;
-  const login = (u) => {
+  const login = (u: UserAccount) => {
     const workspaces = (u.ws || []).filter((w) => w === "tt" || w === "tm");
-    const account = { ...u, ws: workspaces.length ? workspaces : ["tt"] };
-    c.up((d) => {
+    const account: UserAccount = { ...u, ws: workspaces.length ? workspaces : ["tt"] };
+    up((d) => {
       d.user = account;
       d.ws = account.ws[0];
     });
   };
-  const to = (n) => {
+  const to = (n: AuthStep) => {
     setErr("");
     setStep(n);
   };
-  const steps = ["details", "otp", "cred", "ws"],
+  const steps: AuthStep[] = ["details", "otp", "cred", "ws"],
     si = steps.indexOf(step);
   const dots = si >= 0 && (
-      <div className="dots">
-        {steps.map((x, i) => <i key={x} className={i <= si ? "on" : ""} />)}
-      </div>
-    );
+    <div className="dots">
+      {steps.map((x, i) => <i key={x} className={i <= si ? "on" : ""} />)}
+    </div>
+  );
   const msg = err && <div className="err">{err}</div>;
 
-  const signin = (e) => {
+  const signin = (e: FormEvent) => {
     e.preventDefault();
     const id = f.id.trim().toLowerCase();
     if (id === "abc@gmail.com" && f.pw === "123456") {
@@ -659,15 +952,15 @@ function Auth({ c }) {
     setErr("Email or username, or password is incorrect. Demo: abc@gmail.com / 123456");
   };
 
-  const confirmOtp = (e) => {
+  const confirmOtp = (e: FormEvent) => {
     e.preventDefault();
-    if (f.otp !== "123456") {
+    if (f.otp !== DEMO_OTP) {
       return setErr("Incorrect OTP. Use the demo code 123456.");
     }
     to("cred");
   };
 
-  const signup = (e) => {
+  const signup = (e: FormEvent) => {
     e.preventDefault();
     if (f.user.trim().length < 3) {
       return setErr("Username must be at least 3 characters.");
@@ -681,28 +974,27 @@ function Auth({ c }) {
     to("ws");
   };
 
-  const finish = (e) => {
+  const finish = (e: FormEvent) => {
     e.preventDefault();
     if (!f.ws.length) {
       return setErr("Select at least one workspace to continue.");
     }
-    const u = {
+    const u: UserAccount = {
       name: f.name,
       addr: f.addr,
       phone: f.phone,
       email: f.email,
       user: f.user.trim(),
       pw: f.pw1,
-      ws: ["tt", "tm"].filter((w) => f.ws.includes(w)),
+      ws: WORKSPACE_IDS.filter((w) => f.ws.includes(w)),
     };
-    try {
-      localStorage.setItem("wf_acc", JSON.stringify([...accs(), u]));
-    } catch (x) {}
+    apiService.saveAccounts([...accs(), u]);
     login(u);
   };
 
   // The spotlight and dotted grid in the background follow the cursor
-  const onMove = (e) => {
+
+  const onMove = (e: ReactMouseEvent<HTMLDivElement>) => {
     const el = e.currentTarget,
       r = el.getBoundingClientRect();
     el.style.setProperty("--mx", e.clientX - r.left + "px");
@@ -723,7 +1015,7 @@ function Auth({ c }) {
         <i className="glow" />
       </div>
       <div className="hero">
-        <div className="logo" style={{ marginBottom: 10 }}>W.</div>
+        <div className="logo" style={{ marginBottom: 10 }}>W</div>
         <b style={{ letterSpacing: ".12em", fontSize: 12 }}>WORK FLOW PLATFORM</b>
         <h1>Welcome to<br />Work Flow.</h1>
         <p>Your work, your teams and your projects, unified in one place.</p>
@@ -731,214 +1023,218 @@ function Auth({ c }) {
       <div className="box">
         <div className="form">
           {step === "in" && (
-              <form key="in" className="sw" onSubmit={signin}>
-                <h2>Welcome back</h2>
-                <span className="mu">Already have an account? Sign in to continue.</span>
-                <label>
-                  Email or Username
+            <form key="in" className="sw" onSubmit={signin}>
+              <h2>Welcome back</h2>
+              <span className="mu">Already have an account? Sign in to continue.</span>
+              <label>
+                Email or Username
+                <input
+                  type="text"
+                  value={f.id}
+                  onChange={set("id")}
+                  placeholder="Email or username"
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <span className="pw">
                   <input
-                    type="text"
-                    value={f.id}
-                    onChange={set("id")}
-                    placeholder="Email or username"
+                    type={sh ? "text" : "password"}
+                    value={f.pw}
+                    onChange={set("pw")}
+                    placeholder="Password"
                     required
                   />
-                </label>
-                <label>
-                  Password
-                  <span className="pw">
-                    <input
-                      type={sh ? "text" : "password"}
-                      value={f.pw}
-                      onChange={set("pw")}
-                      placeholder="Password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="eye"
-                      aria-label={sh ? "Hide password" : "Show password"}
-                      onClick={() => setSh(!sh)}
-                    >
-                      <Icon n={sh ? "EyeOff" : "Eye"} s={18} />
-                    </button>
-                  </span>
-                </label>
-                {msg}
-                <button className="btn">Sign In</button>
-                <div className="or">or</div>
-                <button type="button" className="btn sec" onClick={() => to("details")}>
-                  Create new account
-                </button>
-                <small className="mu" style={{ textAlign: "center" }}>
-                  Demo account: abc@gmail.com / 123456
-                </small>
-              </form>
-            )}
+                  <button
+                    type="button"
+                    className="eye"
+                    aria-label={sh ? "Hide password" : "Show password"}
+                    onClick={() => setSh(!sh)}
+                  >
+                    <Icon n={sh ? "EyeOff" : "Eye"} s={18} />
+                  </button>
+                </span>
+              </label>
+              {msg}
+              <button className="btn">Sign In</button>
+              <div className="or">or</div>
+              <button type="button" className="btn sec" onClick={() => to("details")}>
+                Create new account
+              </button>
+              <small className="mu" style={{ textAlign: "center" }}>
+                Demo account: abc@gmail.com / 123456
+              </small>
+            </form>
+          )}
           {step === "details" && (
-              <form
-                key="d"
-                className="sw"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  to("otp");
-                }}
-              >
-                {dots}
-                <h2>Create your account</h2>
-                <span className="mu">Tell us about yourself, then verify your email.</span>
-                <label>
-                  Full Name
-                  <input
-                    type="text"
-                    value={f.name}
-                    onChange={set("name")}
-                    placeholder="Enter your full name"
-                    required
-                  />
-                </label>
-                <label>
-                  Address
-                  <input
-                    type="text"
-                    value={f.addr}
-                    onChange={set("addr")}
-                    placeholder="Enter your address"
-                    required
-                  />
-                </label>
-                <label>
-                  Phone
-                  <input
-                    type="tel"
-                    value={f.phone}
-                    onChange={set("phone")}
-                    placeholder="Enter your phone number"
-                    required
-                  />
-                </label>
-                <label>
-                  Email
-                  <input
-                    type="email"
-                    value={f.email}
-                    onChange={set("email")}
-                    placeholder="name@example.com"
-                    required
-                  />
-                </label>
-                <button className="btn">Verify</button>
-                <button type="button" className="link" onClick={() => to("in")}>
-                  Back to sign in
-                </button>
-              </form>
-            )}
+            <form
+              key="d"
+              className="sw"
+              onSubmit={(e) => {
+                e.preventDefault();
+                to("otp");
+              }}
+            >
+              {dots}
+              <h2>Create your account</h2>
+              <span className="mu">Tell us about yourself, then verify your email.</span>
+              <label>
+                Full Name
+                <input
+                  type="text"
+                  value={f.name}
+                  onChange={set("name")}
+                  placeholder="Enter your full name"
+                  required
+                />
+              </label>
+              <label>
+                Address
+                <input
+                  type="text"
+                  value={f.addr}
+                  onChange={set("addr")}
+                  placeholder="Enter your address"
+                  required
+                />
+              </label>
+              <label>
+                Phone
+                <input
+                  type="tel"
+                  value={f.phone}
+                  onChange={set("phone")}
+                  placeholder="Enter your phone number"
+                  required
+                />
+              </label>
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={f.email}
+                  onChange={set("email")}
+                  placeholder="name@example.com"
+                  required
+                />
+              </label>
+              <button className="btn">Verify</button>
+              <button type="button" className="link" onClick={() => to("in")}>
+                Back to sign in
+              </button>
+            </form>
+          )}
           {step === "otp" && (
-              <form key="o" className="sw" onSubmit={confirmOtp}>
-                {dots}
-                <h2>Verify your email</h2>
-                <span className="mu">
-                  Enter the 6-digit OTP sent to
-                  {" "}
-                  <b>{f.email}</b>
-                  {" "}
-                  (demo code: 123456).
-                </span>
-                <label>
-                  OTP
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={f.otp}
-                    onChange={(e) => setF({ ...f, otp: e.target.value.replace(/\D/g, "") })}
-                    placeholder="6-digit code"
-                    required
-                  />
-                </label>
-                {msg}
-                <button className="btn">Confirm OTP</button>
-                <button type="button" className="link" onClick={() => to("details")}>
-                  Edit details
-                </button>
-              </form>
-            )}
+            <form key="o" className="sw" onSubmit={confirmOtp}>
+              {dots}
+              <h2>Verify your email</h2>
+              <span className="mu">
+                Enter the 6-digit OTP sent to
+                {" "}
+                <b>{f.email}</b>
+                {" "}
+                (demo code: 123456).
+              </span>
+              <label>
+                OTP
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={f.otp}
+                  onChange={(e) => setF({ ...f, otp: e.target.value.replace(/\D/g, "") })}
+                  placeholder="6-digit code"
+                  required
+                />
+              </label>
+              {msg}
+              <button className="btn">Confirm OTP</button>
+              <button type="button" className="link" onClick={() => to("details")}>
+                Edit details
+              </button>
+            </form>
+          )}
           {step === "cred" && (
-              <form key="c" className="sw" onSubmit={signup}>
-                {dots}
-                <h2>Set your login</h2>
-                <span className="ok">Email verified</span>
-                <label>
-                  Username
-                  <input
-                    type="text"
-                    value={f.user}
-                    onChange={set("user")}
-                    placeholder="Choose a username"
-                    required
-                  />
-                </label>
-                <label>
-                  Password
-                  <input
-                    type="password"
-                    value={f.pw1}
-                    onChange={set("pw1")}
-                    placeholder="At least 6 characters"
-                    required
-                  />
-                </label>
-                {msg}
-                <button className="btn">Sign Up</button>
-              </form>
-            )}
+            <form key="c" className="sw" onSubmit={signup}>
+              {dots}
+              <h2>Set your login</h2>
+              <span className="ok">Email verified</span>
+              <label>
+                Username
+                <input
+                  type="text"
+                  value={f.user}
+                  onChange={set("user")}
+                  placeholder="Choose a username"
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={f.pw1}
+                  onChange={set("pw1")}
+                  placeholder="At least 6 characters"
+                  required
+                />
+              </label>
+              {msg}
+              <button className="btn">Sign Up</button>
+            </form>
+          )}
           {step === "ws" && (
-              <form key="w" className="sw" onSubmit={finish}>
-                {dots}
-                <h2>Choose your workspace</h2>
-                <span className="mu">
-                  Select one or more. You can switch anytime from your profile.
-                </span>
-                {["tt", "tm"].map((w) => {
-                  const on = f.ws.includes(w);
+            <form key="w" className="sw" onSubmit={finish}>
+              {dots}
+              <h2>Choose your workspace</h2>
+              <span className="mu">
+                Select one or more. You can switch anytime from your profile.
+              </span>
+              {WORKSPACE_IDS.map((w) => {
+                const on = f.ws.includes(w);
 
-                  return (
-                    <label key={w} className={"wso " + (on ? "on" : "")}>
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        onChange={() =>
-                          setF({ ...f, ws: on ? f.ws.filter((x) => x !== w) : [...f.ws, w] })}
-                      />
-                      <span className="wi"><Icon n={WSI[w]} s={20} /></span>
-                      <span className="wt">
-                        <b>{WS[w]}</b>
-                        <small>{WSD[w]}</small>
-                      </span>
-                      <span className="wc">{on && <Icon n="Check" s={14} />}</span>
-                    </label>
-                  );
-                })}
-                {msg}
-                <button className="btn">Login</button>
-              </form>
-            )}
+                return (
+                  <label key={w} className={"wso " + (on ? "on" : "")}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() =>
+                        setF({ ...f, ws: on ? f.ws.filter((x) => x !== w) : [...f.ws, w] })}
+                    />
+                    <span className="wi"><Icon n={WSI[w]} s={20} /></span>
+                    <span className="wt">
+                      <b>{WS[w]}</b>
+                      <small>{WSD[w]}</small>
+                    </span>
+                    <span className="wc">{on && <Icon n="Check" s={14} />}</span>
+                  </label>
+                );
+              })}
+              {msg}
+              <button className="btn">Login</button>
+            </form>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function Chat({ c, kind, chans }) {
+// ============================================================
+// 8. Chat and messaging (team group chat + direct messages)
+// ============================================================
+
+function Chat({ c, kind, chans }: { c: Ctx; kind: "chat" | "dm"; chans: string[] }) {
   const [a, setA] = useState(chans[0] || ""),
     [x, setX] = useState(""),
     [file, setFile] = useState(""),
     [rec, setRec] = useState(false),
-    [call, setCall] = useState(null),
+    [call, setCall] = useState<string | null>(null),
     [q, setQ] = useState("");
   const list = c.s.msgs[a] || [];
 
-  const send = (e) => {
+  const send = (e: FormEvent) => {
     e.preventDefault();
     if (!x.trim() && !file) {
       return;
@@ -997,7 +1293,7 @@ function Chat({ c, kind, chans }) {
         <form className="inp" onSubmit={send}>
           <label className="btn sm sec" style={{ padding: "9px" }}>
             <Icon n="Paperclip" s={16} />
-            <input type="file" hidden onChange={(e) => setFile(e.target.files[0]?.name || "")} />
+            <input type="file" hidden onChange={(e) => setFile(e.target.files?.[0]?.name || "")} />
           </label>
           <button
             type="button"
@@ -1027,50 +1323,39 @@ function Chat({ c, kind, chans }) {
         </form>
       </div>
       {call && (
-          <Modal title={call + " call (demo)"} onClose={() => setCall(null)}>
-            <p>Frontend demo interface for <b>{a}</b>. No real call is connected.</p>
-            <button className="btn red" onClick={() => setCall(null)}>End call</button>
-          </Modal>
-        )}
+        <Modal title={call + " call (demo)"} onClose={() => setCall(null)}>
+          <p>Frontend demo interface for <b>{a}</b>. No real call is connected.</p>
+          <button className="btn red" onClick={() => setCall(null)}>End call</button>
+        </Modal>
+      )}
     </div>
   );
 }
 
-let toastFn = null;
-const showToast = (m) => {
-  if (toastFn) {
-    toastFn(m);
-  }
-};
+// ============================================================
+// 9. User profile
+// ============================================================
 
-function ToastHost() {
-  const [msg, setMsg] = useState("");
-  useEffect(() => {
-    toastFn = setMsg;
-    return () => {
-      toastFn = null;
-    };
-  }, []);
-  useEffect(() => {
-    if (!msg) {
-      return;
-    }
-    const t = setTimeout(() => setMsg(""), 2600);
-    return () => clearTimeout(t);
-  }, [msg]);
-  return msg ? <div className="toast">{msg}</div> : null;
+interface ProfileForm {
+  name: string;
+  phone: string;
+  email: string;
+  user: string;
+  pw: string;
 }
 
-// Profile page: round photo with an edit button, then the account details (editable)
-function Profile({ c }) {
+type ProfileTextField = "name" | "phone" | "email" | "user";
+
+
+function Profile({ c }: { c: Ctx }) {
   const u = c.u;
   const [show, setShow] = useState(false),
     [edit, setEdit] = useState(false),
     [err, setErr] = useState(""),
-    [f, setF] = useState({ name: "", phone: "", email: "", user: "", pw: "" });
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+    [f, setF] = useState<ProfileForm>({ name: "", phone: "", email: "", user: "", pw: "" });
+  const set = (k: keyof ProfileForm) => (e: ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
 
-  const pick = (e) => {
+  const pick = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
     if (!file) {
@@ -1083,7 +1368,9 @@ function Profile({ c }) {
     const rd = new FileReader();
     rd.onload = () => {
       c.up((d) => {
-        d.user.photo = rd.result;
+        if (d.user) {
+          d.user.photo = rd.result as string;
+        }
       });
       c.toast("Profile photo updated");
     };
@@ -1103,7 +1390,7 @@ function Profile({ c }) {
     setEdit(true);
   };
 
-  const save = (e) => {
+  const save = (e: FormEvent) => {
     e.preventDefault();
     const name = f.name.trim(),
       phone = f.phone.trim(),
@@ -1133,15 +1420,10 @@ function Profile({ c }) {
       return setErr("That username or email is already registered.");
     }
     const next = { name, phone, email, user, pw: f.pw };
-    try {
-      localStorage.setItem(
-        "wf_acc",
-        JSON.stringify(accs.map((x) => x.email === u.email ? { ...x, ...next } : x)),
-      );
-    } catch (x) {}
+    apiService.saveAccounts(accs.map((x) => x.email === u.email ? { ...x, ...next } : x));
     const old = u.name;
     c.up((d) => {
-      // keep every project, task and chat linked to this person when the name changes
+     
       if (name !== old) {
         d.projects.forEach((p) => {
           if (p.lead === old) {
@@ -1165,14 +1447,16 @@ function Profile({ c }) {
           });
         });
       }
-      d.user = { ...d.user, ...next };
+      if (d.user) {
+        d.user = { ...d.user, ...next };
+      }
     });
     setEdit(false);
     setShow(false);
     c.toast("Profile updated");
   };
 
-  const rows = [
+  const rows: [IconName, string, ProfileTextField, string, string][] = [
     ["User", "Name", "name", "text", "Your full name"],
     ["Phone", "Phone number", "phone", "tel", "Phone number"],
     ["Mail", "Email", "email", "email", "name@example.com"],
@@ -1271,13 +1555,92 @@ function Profile({ c }) {
   );
 }
 
+// ============================================================
+// 10. Project list
+// ============================================================
+
+interface ProjListProps {
+  projects: Project[];
+  prog: (p: Project) => number;
+  pstat: (p: Project) => ProjectStatus;
+  go: (r: Route) => void;
+  s: AppState;
+}
+
+function ProjList({ projects, prog, pstat, go, s }: ProjListProps) {
+  const [q, setQ] = useState(""),
+    [st, setSt] = useState("All");
+  const l = projects.filter((p) =>
+    (st === "All" || pstat(p) === st) &&
+      (p.name + p.team + p.lead).toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <>
+      <div className="toolbar">
+        <div className="search">
+          <span><Icon n="Search" s={18} /></span>
+          <input
+            placeholder="Search projects, teams, members…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <select value={st} onChange={(e) => setSt(e.target.value)}>
+          {["All", "Pending", "In Progress", "Completed"].map((x) => (
+            <option key={x}>{x}</option>
+          ))}
+        </select>
+      </div>
+      <div className="card tbl fix">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Project</th>
+              <th>Team</th>
+              <th>Lead</th>
+              <th>Tasks</th>
+              <th>Progress</th>
+              <th>Due</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {l.map((p) => {
+              const t = s.tasks.filter((x) => x.project === p.name);
+
+              return (
+                <tr key={p.id} className="cl" onClick={() => go({ p: "projd", id: p.id })}>
+                  <td>{p.id}</td>
+                  <td><b>{p.name}</b></td>
+                  <td>{p.team}</td>
+                  <td>{p.lead}</td>
+                  <td>{t.filter((x) => x.status === "Completed").length}/{t.length}</td>
+                  <td style={{ minWidth: 100 }}><Bar v={prog(p)} /></td>
+                  <td>{p.due}</td>
+                  <td><Pill v={pstat(p)} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {!l.length && <p className="mu" style={{ padding: 14 }}>No projects.</p>}
+      </div>
+    </>
+  );
+}
+
+// ============================================================
+// 11. Main application component
+// ============================================================
+
 function App() {
-  // State lives in memory only (no localStorage), so a page reload starts from the demo data again.
-  const [s, setS] = useState(seed);
-  const [route, setRoute] = useState({ p: "overview" }),
-    [hist, setHist] = useState([]),
+
+  const [s, setS] = useState<AppState>(() => apiService.loadInitialState());
+  const [route, setRoute] = useState<Route>({ p: "overview" }),
+    [hist, setHist] = useState<Route[]>([]),
     [dd, setDd] = useState(false),
-    [modal, setModal] = useState(null),
+    [modal, setModal] = useState<ModalState>(null),
     [flt, setFlt] = useState("All"),
     [tq, setTq] = useState(""),
     [tp, setTp] = useState("All"),
@@ -1285,30 +1648,22 @@ function App() {
     [mf, setMf] = useState("All");
   const setToast = showToast;
 
-  const [side, setSide] = useState(() => {
-    try {
-      return localStorage.getItem("wf_side") === "1";
-    } catch (e) {
-      return false;
-    }
-  });
-  const profRef = useRef(null);
+  const [side, setSide] = useState<boolean>(() => apiService.readSidebarOpen());
+  const profRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    try {
-      localStorage.setItem("wf_side", side ? "1" : "0");
-    } catch (e) {}
+    apiService.saveSidebarOpen(side);
   }, [side]);
 
   useEffect(() => {
     if (!dd) {
       return;
     }
-    const onDown = (e) => {
-      if (profRef.current && !profRef.current.contains(e.target)) {
+    const onDown = (e: MouseEvent) => {
+      if (profRef.current && !profRef.current.contains(e.target as Node)) {
         setDd(false);
       }
     };
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setDd(false);
       }
@@ -1321,14 +1676,17 @@ function App() {
     };
   }, [dd]);
 
-  const up = (fn) =>
+  
+  const up: Updater = (fn) =>
     setS((p) => {
-      const d = JSON.parse(JSON.stringify(p));
+      const d = JSON.parse(JSON.stringify(p)) as AppState;
       fn(d);
       return d;
     });
-  const log = (d, id, txt) => d.tasks.find((t) => t.id === id).log.push({ t: now(), txt });
-  const go = (r) => {
+  const log = (d: AppState, id: string, txt: string) => {
+    d.tasks.find((t) => t.id === id)!.log.push({ t: now(), txt });
+  };
+  const go = (r: Route) => {
     setHist((h) => [...h, route]);
     setRoute(r);
     setDd(false);
@@ -1341,26 +1699,30 @@ function App() {
       setRoute({ p: "overview" });
     }
   };
-  const c = { s, up, go, u: s.user, toast: setToast };
+
   if (!s.user) {
-    return <Auth c={c} />;
+    return <Auth up={up} />;
   }
+
   const u = s.user,
-    ws = s.ws,
+    ws: WorkspaceId = s.ws ?? "tt",
     TT = ws === "tt",
     TM = ws === "tm";
+  const c: Ctx = { s, up, go, u, toast: setToast };
+
+  
   const projects = s.projects.filter((p) => (TT ? p.lead === u.name : p.members.includes(u.name)));
   const pn = projects.map((p) => p.name);
   const tasks = s.tasks.filter((t) => (TT ? pn.includes(t.project) : t.assignee === u.name));
-  const secs = (t) =>
+  const secs = (t: Task) =>
     t.secs + (s.timer && s.timer.id === t.id ? (Date.now() - s.timer.start) / 1000 : 0);
-  const prog = (p) => {
+  const prog = (p: Project): number => {
     const t = s.tasks.filter((x) => x.project === p.name);
     return t.length
       ? Math.round(t.filter((x) => x.status === "Completed").length / t.length * 100)
       : 0;
   };
-  const pstat = (p) => {
+  const pstat = (p: Project): ProjectStatus => {
     const ts = s.tasks.filter((x) => x.project === p.name);
     if (ts.length && ts.every((x) => x.status === "Completed")) {
       return "Completed";
@@ -1371,7 +1733,7 @@ function App() {
     return "Pending";
   };
 
-  const switchWs = (w) => {
+  const switchWs = (w: WorkspaceId) => {
     up((d) => {
       d.ws = w;
     });
@@ -1381,11 +1743,10 @@ function App() {
     setToast("Switched to " + WS[w]);
   };
 
-  // ---- Timer workflow helpers ----
-  // Stop the running timer (at = the moment the button was clicked). Task becomes "Stopped".
-  const stopTimer = (d, at) => {
+  
+  const stopTimer = (d: AppState, at?: number) => {
     if (d.timer) {
-      const t = d.tasks.find((x) => x.id === d.timer.id);
+      const t = d.tasks.find((x) => x.id === d.timer!.id)!;
       const el = Math.floor(((at || Date.now()) - d.timer.start) / 1000);
       t.secs += el;
       t.status = "Stopped";
@@ -1394,31 +1755,31 @@ function App() {
     }
   };
 
-  const startTimer = (t) =>
+  const startTimer = (t: Task) =>
     up((d) => {
       stopTimer(d);
-      const k = d.tasks.find((x) => x.id === t.id);
+      const k = d.tasks.find((x) => x.id === t.id)!;
       log(d, t.id, k.secs > 0 ? "Timer resumed" : "Timer started");
       k.status = "In Progress";
       d.timer = { id: t.id, start: Date.now() };
     });
 
-  // In Progress / Stopped -> Review (no description needed)
-  const markReview = (t) => {
+ 
+  const markReview = (t: Task) => {
     up((d) => {
       if (d.timer && d.timer.id === t.id) {
         stopTimer(d);
       }
-      d.tasks.find((x) => x.id === t.id).status = "Review";
+      d.tasks.find((x) => x.id === t.id)!.status = "Review";
       log(d, t.id, "Marked for review by " + u.name);
     });
     setToast("Marked for review");
   };
 
-  // Review -> Completed
-  const completeReviewed = (t) => {
+  
+  const completeReviewed = (t: Task) => {
     up((d) => {
-      const k = d.tasks.find((x) => x.id === t.id);
+      const k = d.tasks.find((x) => x.id === t.id)!;
       k.status = "Completed";
       k.completedAt = now();
       log(d, t.id, "Marked complete by " + u.name);
@@ -1426,7 +1787,8 @@ function App() {
     setToast("Task marked as completed");
   };
 
-  const nav = [
+  
+  const nav: [PageId, IconName, string][] = [
     ["overview", "LayoutDashboard", "Overview"],
     ["project", "FolderKanban", "Project"],
     ["team", "UsersRound", "Team"],
@@ -1436,7 +1798,7 @@ function App() {
     ["notif", "Bell", "Notification"],
   ];
 
-  const titles = {
+  const titles: Partial<Record<PageId, string>> = {
     project: "Projects",
     projd: "Project Details",
     team: "Teams",
@@ -1460,12 +1822,12 @@ function App() {
           Back
         </button>
       );
-  const mems = (pj) => {
+  const mems = (pj: string): string[] => {
     const p = s.projects.find((x) => x.name === pj);
     return p ? p.members : [];
   };
 
-  const statCards = (list, cls) => (
+  const statCards = (list: StatItem[], cls?: string) => (
     <div className={"lo-stats " + (cls || "")}>
       {list.map(([a, b, i]) => (
         <div key={a} className="card stat">
@@ -1482,11 +1844,11 @@ function App() {
     const [f, setF] = useState({
       title: "",
       desc: "",
-      project: modal?.project || projects[0]?.name || "",
+      project: (modal && modal.k === "assign" && modal.project) || projects[0]?.name || "",
       assignee: "",
-      priority: "Medium",
+      priority: "Medium" as TaskPriority,
       due: "2026-11-30",
-      items: [],
+      items: [] as string[],
       ci: "",
     });
     const ms = mems(f.project);
@@ -1514,7 +1876,7 @@ function App() {
                   (Math.max(1107, ...s.tasks.map((x) => parseInt(x.id.slice(5)) || 0)) + 1);
                 up((d) => {
                   d.tasks.unshift(
-                    T(id, f.title, f.desc || "Assigned task.", f.project, as, u.name, f.priority, f.due, f.items),
+                    makeTask(id, f.title, f.desc || "Assigned task.", f.project, as, u.name, f.priority, f.due, f.items),
                   );
                 });
                 setModal(null);
@@ -1559,7 +1921,7 @@ function App() {
                   Priority
                   <select
                     value={f.priority}
-                    onChange={(e) => setF({ ...f, priority: e.target.value })}
+                    onChange={(e) => setF({ ...f, priority: e.target.value as TaskPriority })}
                   >
                     <option>High</option>
                     <option>Medium</option>
@@ -1616,8 +1978,8 @@ function App() {
     );
   };
 
-  // Reassign a task that has not been started yet
-  const Reassign = ({ t }) => {
+ 
+  const Reassign = ({ t }: { t: Task }) => {
     const [q, setQ] = useState("");
     const ms = mems(t.project).filter((m) =>
       m !== t.assignee && m.toLowerCase().includes(q.toLowerCase()));
@@ -1642,7 +2004,7 @@ function App() {
                 className="btn sm"
                 onClick={() => {
                   up((d) => {
-                    const k = d.tasks.find((x) => x.id === t.id);
+                    const k = d.tasks.find((x) => x.id === t.id)!;
                     k.assignee = m;
                     k.status = "Reassigned";
                     log(d, t.id, `Reassigned from ${t.assignee} to ${m}`);
@@ -1663,8 +2025,8 @@ function App() {
     );
   };
 
-  // Description pop-up for "Stop & Save" and "Mark Complete"
-  const NoteModal = ({ m }) => {
+ 
+  const NoteModal = ({ m }: { m: NoteModalState }) => {
     const [x, setX] = useState("");
     const stop = m.kind === "stopsave";
 
@@ -1684,7 +2046,7 @@ function App() {
               if (d.timer && d.timer.id === m.t.id) {
                 stopTimer(d, m.at);
               }
-              const k = d.tasks.find((y) => y.id === m.t.id);
+              const k = d.tasks.find((y) => y.id === m.t.id)!;
               if (stop) {
                 log(d, k.id, "Work update: " + x.trim());
               } else {
@@ -1717,7 +2079,7 @@ function App() {
     );
   };
 
-  const teamModal = (x) => (
+  const teamModal = (x: Project) => (
     <Modal title={x.team + " · " + x.name} onClose={() => setModal(null)}>
       <div className="mu">Lead: {x.lead}</div>
       {[x.lead, ...x.members].map((m, i) => {
@@ -1739,15 +2101,15 @@ function App() {
         );
       })}
       {TT && (
-          <button className="btn" onClick={() => setModal({ k: "assign", project: x.name })}>
-            Assign Task
-          </button>
-        )}
+        <button className="btn" onClick={() => setModal({ k: "assign", project: x.name })}>
+          Assign Task
+        </button>
+      )}
     </Modal>
   );
 
-  // Report to Super Admin
-  const Report = ({ t }) => {
+  
+  const Report = ({ t }: { t: Task }) => {
     const [f, setF] = useState({ cat: "Task Progress", desc: "", prog: "", block: "", act: "", att: "" });
 
     return (
@@ -1758,7 +2120,7 @@ function App() {
             e.preventDefault();
 
             up((d) => {
-              const k = d.tasks.find((x) => x.id === t.id);
+              const k = d.tasks.find((x) => x.id === t.id)!;
               k.reports.push({ ...f, at: now(), by: u.name, status: k.status });
               log(d, t.id, "Report to Super Admin submitted (" + f.cat + ")");
             });
@@ -1806,7 +2168,7 @@ function App() {
           </label>
           <label>
             Optional Attachment
-            <input type="file" onChange={(e) => setF({ ...f, att: e.target.files[0]?.name || "" })} />
+            <input type="file" onChange={(e) => setF({ ...f, att: e.target.files?.[0]?.name || "" })} />
           </label>
           <button className="btn">Submit Report</button>
         </form>
@@ -1814,11 +2176,9 @@ function App() {
     );
   };
 
-  // ============ Task details ============
-  // NOTE: these are plain render functions (not inner components) so the page does not
-  // re-mount on every update. That is why ticking a checklist item no longer "reloads" the page.
 
-  const taskDetail = () => {
+
+  const taskDetail = (): ReactNode => {
     const t = s.tasks.find((x) => x.id === route.id);
     if (!t) {
       return <div className="card">Task not found.</div>;
@@ -1843,7 +2203,7 @@ function App() {
                 disabled={!canTick}
                 onChange={() =>
                   up((d) => {
-                    const k = d.tasks.find((x) => x.id === t.id);
+                    const k = d.tasks.find((x) => x.id === t.id)!;
                     k.checklist[i].done = !k.checklist[i].done;
                   })}
               />
@@ -1855,7 +2215,7 @@ function App() {
       </>
     );
 
-    // ---------- Team & task management ----------
+  
     if (TT) {
       const savedChanges = [...t.log].reverse().filter((l) =>
         l.txt.startsWith("Work update: ") || l.txt.startsWith("Completed: "));
@@ -1919,12 +2279,8 @@ function App() {
       );
     }
 
-    // ---------- Task management ----------
-    // To Do / Reassigned -> [Start] [Reassign]
-    // In Progress        -> [Stop & Save] [Mark as Review] [Mark Complete]
-    // Stopped            -> [Resume] [Mark as Review] [Mark Complete]
-    // Review / Completed -> status only
-    let ctrl;
+  
+    let ctrl: ReactNode;
     if (done) {
       ctrl = <span className="mu">Task completed.</span>;
     } else if (t.status === "Review") {
@@ -2003,7 +2359,7 @@ function App() {
     );
   };
 
-  const taskTable = (list, size) => (
+  const taskTable = (list: Task[], size?: string) => (
     <div className={"card tbl " + (size || "")}>
       <table>
         <thead>
@@ -2037,21 +2393,28 @@ function App() {
     </div>
   );
 
-  let page;
+  // ============ Pages ============
+
+  let page: ReactNode;
   const p = route.p;
   const reportTask = p === "taskd" && TT ? s.tasks.find((x) => x.id === route.id) : null;
 
-  // ---------- Overview: Team & task management ----------
+  
   if (p === "overview" && TT) {
-    const cnt = (st) => tasks.filter((t) => t.status === st).length;
+    const cnt = (st: TaskStatus) => tasks.filter((t) => t.status === st).length;
     const reviewList = tasks.filter((t) => t.status === "Review");
-    const stats = [
+    const stats: StatItem[] = [
       ["Projects", projects.length, "FolderKanban"],
       ["Team Members", new Set(projects.flatMap((x) => x.members)).size, "UsersRound"],
       ["Total Task", tasks.length, "ListTodo"],
       ["Completed", cnt("Completed"), "Check"],
       ["In Progress", cnt("In Progress"), "Zap"],
       ["Under Review", reviewList.length, "Eye"],
+    ];
+    const quick: QuickAction[] = [
+      ["FolderKanban", "View Project", "Open your projects", () => go({ p: "project" })],
+      ["UserPlus", "Assign Task", "Delegate to your team", () => setModal({ k: "assign" })],
+      ["UsersRound", "View Teams", "See your teams", () => go({ p: "team" })],
     ];
 
     page = (
@@ -2097,16 +2460,7 @@ function App() {
           <div className="card">
             <b>Quick Actions</b>
             <div className="lo-quick">
-              {[
-                ["FolderKanban", "View Project", "Open your projects", () => go({ p: "project" })],
-                [
-                  "UserPlus",
-                  "Assign Task",
-                  "Delegate to your team",
-                  () => setModal({ k: "assign" }),
-                ],
-                ["UsersRound", "View Teams", "See your teams", () => go({ p: "team" })],
-              ].map(([i, a, b, f]) => (
+              {quick.map(([i, a, b, f]) => (
                 <button key={a} className="qbtn" onClick={f}>
                   <i><Icon n={i} s={20} /></i>
                   <span><b>{a}</b><small>{b}</small></span>
@@ -2136,22 +2490,27 @@ function App() {
     );
   }
 
-  // ---------- Overview: Task management ----------
+ 
   if (p === "overview" && TM) {
-    const cnt = (st) => tasks.filter((t) => t.status === st).length;
-    const cur = (s.timer && tasks.find((t) => t.id === s.timer.id)) ||
+    const cnt = (st: TaskStatus) => tasks.filter((t) => t.status === st).length;
+    const cur: Task | null = (s.timer && tasks.find((t) => t.id === s.timer!.id)) ||
       tasks.find((t) => t.status === "In Progress" || t.status === "Stopped") ||
       null;
     const curRun = !!cur && s.timer?.id === cur.id;
     const upcomingList = tasks
       .filter((t) => t.status !== "Completed" && t.status !== "Review" && (!cur || t.id !== cur.id))
       .sort((a, b) => a.due.localeCompare(b.due));
-    const stats = [
+    const stats: StatItem[] = [
       ["Open Tasks", tasks.filter((t) => t.status !== "Completed").length, "ListTodo"],
       ["Projects", projects.length, "FolderKanban"],
       ["In Progress", cnt("In Progress"), "Zap"],
       ["Completed", cnt("Completed"), "Check"],
       ["Logged Hours", fmt(tasks.reduce((a, t) => a + secs(t), 0)).slice(0, -3), "Clock"],
+    ];
+    const quick: QuickAction[] = [
+      ["ClipboardCheck", "View Tasks", "Your assigned tasks", () => go({ p: "task" })],
+      ["FolderKanban", "View Project", "Open your projects", () => go({ p: "project" })],
+      ["UsersRound", "View Teams", "See your teams", () => go({ p: "team" })],
     ];
 
     page = (
@@ -2215,11 +2574,7 @@ function App() {
           <div className="card eo-quick">
             <b>Quick Actions</b>
             <div className="lo-quick">
-              {[
-                ["ClipboardCheck", "View Tasks", "Your assigned tasks", () => go({ p: "task" })],
-                ["FolderKanban", "View Project", "Open your projects", () => go({ p: "project" })],
-                ["UsersRound", "View Teams", "See your teams", () => go({ p: "team" })],
-              ].map(([i, a, b, f]) => (
+              {quick.map(([i, a, b, f]) => (
                 <button key={a} className="qbtn" onClick={f}>
                   <i><Icon n={i} s={20} /></i>
                   <span><b>{a}</b><small>{b}</small></span>
@@ -2261,8 +2616,9 @@ function App() {
     );
   }
 
+ 
   if (p === "project") {
-    const ps = (st) => projects.filter((x) => pstat(x) === st).length;
+    const ps = (st: ProjectStatus) => projects.filter((x) => pstat(x) === st).length;
 
     page = (
       <div className="grid">
@@ -2277,6 +2633,7 @@ function App() {
     );
   }
 
+ 
   if (p === "projd") {
     const x = s.projects.find((y) => y.id === route.id);
 
@@ -2306,6 +2663,7 @@ function App() {
       );
   }
 
+  
   if (p === "team") {
     const rows = projects.filter((x) =>
       (mf === "All" || x.team === mf) &&
@@ -2332,11 +2690,11 @@ function App() {
             {[...new Set(projects.map((x) => x.team))].map((x) => <option key={x}>{x}</option>)}
           </select>
           {TT && (
-              <button className="btn" onClick={() => setModal({ k: "assign" })}>
-                <Icon n="Plus" s={18} />
-                Assign Task
-              </button>
-            )}
+            <button className="btn" onClick={() => setModal({ k: "assign" })}>
+              <Icon n="Plus" s={18} />
+              Assign Task
+            </button>
+          )}
         </div>
         <div className="card tbl fix">
           <table>
@@ -2381,12 +2739,13 @@ function App() {
     );
   }
 
+  
   if (p === "task") {
     const fl = tasks.filter((t) =>
       (flt === "All" || t.status === flt) &&
         (tp === "All" || t.priority === tp) &&
         (t.id + t.title + t.project + t.assignee).toLowerCase().includes(tq.toLowerCase()));
-    const cnt = (...st) => tasks.filter((t) => st.includes(t.status)).length;
+    const cnt = (...st: TaskStatus[]) => tasks.filter((t) => st.includes(t.status)).length;
 
     page = (
       <div className="grid">
@@ -2418,11 +2777,11 @@ function App() {
             ))}
           </select>
           {TT && (
-              <button className="btn" onClick={() => setModal({ k: "assign" })}>
-                <Icon n="Plus" s={18} />
-                Assign Task
-              </button>
-            )}
+            <button className="btn" onClick={() => setModal({ k: "assign" })}>
+              <Icon n="Plus" s={18} />
+              Assign Task
+            </button>
+          )}
         </div>
         {taskTable(fl, "fix")}
       </div>
@@ -2437,6 +2796,7 @@ function App() {
     page = <Profile c={c} />;
   }
 
+  
   if (p === "chat" || p === "dm") {
     const chans = p === "chat"
       ? [...new Set(projects.map((x) => slug(x.team)))]
@@ -2445,6 +2805,7 @@ function App() {
     page = <Chat key={p + ws} c={c} kind={p} chans={chans} />;
   }
 
+  
   if (p === "notif") {
     page = (
       <div className="card" style={{ padding: 0 }}>
@@ -2470,7 +2831,7 @@ function App() {
             className={"notif " + (n.un ? "un" : "")}
             onClick={() => {
               up((d) => {
-                d.notifs.find((x) => x.id === n.id).un = false;
+                d.notifs.find((x) => x.id === n.id)!.un = false;
               });
               if (n.task) {
                 go({ p: "taskd", id: n.task });
@@ -2486,24 +2847,26 @@ function App() {
               <small className="mu">{n.t}</small>
             </div>
             {n.un && (
-                <button
-                  className="link"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    up((d) => {
-                      d.notifs.find((x) => x.id === n.id).un = false;
-                    });
-                  }}
-                >
-                  Mark read
-                </button>
-              )}
+              <button
+                className="link"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  up((d) => {
+                    d.notifs.find((x) => x.id === n.id)!.un = false;
+                  });
+                }}
+              >
+                Mark read
+              </button>
+            )}
           </div>
         ))}
         {!myNotifs.length && <p className="mu" style={{ padding: 14 }}>No notifications.</p>}
       </div>
     );
   }
+
+  
 
   return (
     <div className={"shell" + (side ? " open" : "")}>
@@ -2520,7 +2883,7 @@ function App() {
           <Icon n={side ? "ChevronLeft" : "ChevronRight"} s={16} />
         </button>
         <div className="brand">
-          <div className="logo">W.</div>
+          <div className="logo">W</div>
           {side && <div className="brandtx"><b>Work Flow</b><small>{WS[ws]}</small></div>}
         </div>
         <nav className="navs">
@@ -2545,35 +2908,35 @@ function App() {
         </nav>
         <div className="prof" ref={profRef}>
           {dd && (
-              <div className="dd">
-                {(u.ws || []).map((w) => (
-                  <button key={w} className={w === ws ? "cur" : ""} onClick={() => switchWs(w)}>
-                    {WS[w]}
-                    {w === ws && <Icon n="Check" s={16} />}
-                  </button>
-                ))}
-                <hr />
-                <button className="ddi" onClick={() => go({ p: "profile" })}>
-                  <Icon n="User" s={18} />
-                  Profile
+            <div className="dd">
+              {(u.ws || []).map((w) => (
+                <button key={w} className={w === ws ? "cur" : ""} onClick={() => switchWs(w)}>
+                  {WS[w]}
+                  {w === ws && <Icon n="Check" s={16} />}
                 </button>
-                <button
-                  className="ddi"
-                  onClick={() => {
-                    up((d) => {
-                      stopTimer(d);
-                      d.user = null;
-                    });
-                    setRoute({ p: "overview" });
-                    setHist([]);
-                    setDd(false);
-                  }}
-                >
-                  <Icon n="LogOut" s={18} />
-                  Logout
-                </button>
-              </div>
-            )}
+              ))}
+              <hr />
+              <button className="ddi" onClick={() => go({ p: "profile" })}>
+                <Icon n="User" s={18} />
+                Profile
+              </button>
+              <button
+                className="ddi"
+                onClick={() => {
+                  up((d) => {
+                    stopTimer(d);
+                    d.user = null;
+                  });
+                  setRoute({ p: "overview" });
+                  setHist([]);
+                  setDd(false);
+                }}
+              >
+                <Icon n="LogOut" s={18} />
+                Logout
+              </button>
+            </div>
+          )}
           <button
             className="pbtn"
             aria-label="Profile menu"
@@ -2624,69 +2987,6 @@ function App() {
       {modal?.k === "report" && <Report t={modal.t} />}
       <ToastHost />
     </div>
-  );
-}
-
-function ProjList({ projects, prog, pstat, go, s }) {
-  const [q, setQ] = useState(""),
-    [st, setSt] = useState("All");
-  const l = projects.filter((p) =>
-    (st === "All" || pstat(p) === st) &&
-      (p.name + p.team + p.lead).toLowerCase().includes(q.toLowerCase()));
-
-  return (
-    <>
-      <div className="toolbar">
-        <div className="search">
-          <span><Icon n="Search" s={18} /></span>
-          <input
-            placeholder="Search projects, teams, members…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
-        <select value={st} onChange={(e) => setSt(e.target.value)}>
-          {["All", "Pending", "In Progress", "Completed"].map((x) => (
-            <option key={x}>{x}</option>
-          ))}
-        </select>
-      </div>
-      <div className="card tbl fix">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Project</th>
-              <th>Team</th>
-              <th>Lead</th>
-              <th>Tasks</th>
-              <th>Progress</th>
-              <th>Due</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {l.map((p) => {
-              const t = s.tasks.filter((x) => x.project === p.name);
-
-              return (
-                <tr key={p.id} className="cl" onClick={() => go({ p: "projd", id: p.id })}>
-                  <td>{p.id}</td>
-                  <td><b>{p.name}</b></td>
-                  <td>{p.team}</td>
-                  <td>{p.lead}</td>
-                  <td>{t.filter((x) => x.status === "Completed").length}/{t.length}</td>
-                  <td style={{ minWidth: 100 }}><Bar v={prog(p)} /></td>
-                  <td>{p.due}</td>
-                  <td><Pill v={pstat(p)} /></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!l.length && <p className="mu" style={{ padding: 14 }}>No projects.</p>}
-      </div>
-    </>
   );
 }
 

@@ -17,6 +17,8 @@
   color-scheme: light;
 }
 
+
+
 * {
   box-sizing: border-box;
 }
@@ -128,6 +130,10 @@ textarea:focus {
 ::placeholder {
   color: #97a8b5;
 }
+
+/* ============================================================
+   SIGN IN / SIGN UP (auth) page
+   ============================================================ */
 
 .auth {
   position: relative;
@@ -301,6 +307,10 @@ textarea:focus {
   border-color: var(--gb2);
 }
 
+/* ============================================================
+   BUTTONS, LINKS AND PASSWORD EYE
+   ============================================================ */
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -394,6 +404,10 @@ textarea:focus {
   color: var(--gbd);
   font-weight: 600;
 }
+
+/* ============================================================
+   APP SHELL, SIDEBAR AND PROFILE MENU
+   ============================================================ */
 
 .shell {
   height: 100vh;
@@ -711,6 +725,10 @@ textarea:focus {
   margin: 8px 0;
 }
 
+/* ============================================================
+   MAIN AREA, CARDS, LAYOUT HELPERS AND STAT CARDS
+   ============================================================ */
+
 .main {
   overflow: auto;
   padding: 30px 34px;
@@ -882,6 +900,10 @@ h2.t {
   color: var(--gbd);
 }
 
+/* ============================================================
+   TABLES, PILLS, PROGRESS BARS AND AVATARS
+   ============================================================ */
+
 .tbl {
   padding: 0;
   overflow: auto;
@@ -1007,6 +1029,10 @@ tr.cl:hover {
   margin-left: 0;
 }
 
+/* ============================================================
+   TOOLBARS AND SEARCH
+   ============================================================ */
+
 .toolbar {
   display: flex;
   gap: 10px;
@@ -1056,6 +1082,10 @@ tr.cl:hover {
   box-shadow: none;
   outline: 0;
 }
+
+/* ============================================================
+   MODALS AND MEMBER PICKER
+   ============================================================ */
 
 .modal {
   position: fixed;
@@ -1124,6 +1154,10 @@ tr.cl:hover {
   background: var(--pw2);
 }
 
+/* ============================================================
+   TEAM BOARD (kanban)
+   ============================================================ */
+
 .kan {
   display: grid;
   grid-template-columns: repeat(4, minmax(210px, 1fr));
@@ -1158,6 +1192,10 @@ tr.cl:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 24px -16px rgba(43, 90, 122, .8);
 }
+
+/* ============================================================
+   CHAT AND DIRECT MESSAGES
+   ============================================================ */
 
 .chat {
   display: grid;
@@ -1249,6 +1287,10 @@ tr.cl:hover {
   flex: 1;
 }
 
+/* ============================================================
+   NOTIFICATIONS
+   ============================================================ */
+
 .notif {
   display: flex;
   gap: 10px;
@@ -1271,6 +1313,10 @@ tr.cl:hover {
   margin-top: 6px;
   flex: none;
 }
+
+/* ============================================================
+   MISC: timer, live badge, task log, toast
+   ============================================================ */
 
 .timer {
   font-size: 32px;
@@ -1527,9 +1573,7 @@ tr.cl:hover {
   max-height: none;
 }
 
-/* ============================================================
-   Metric cards (shared by every page) - larger size
-   ============================================================ */
+
 
 .mtr {
   display: grid;
@@ -1610,14 +1654,14 @@ tr.cl:hover {
   min-height: 0;
 }
 
-/* Single card: fixed readable width, centred, height follows content */
+
 .tdrow.one {
   grid-template-columns: minmax(0, 760px);
   grid-template-rows: auto;
   padding-top: 8px;
 }
 
-/* Review: two equal containers side by side, same height */
+
 .tdrow.two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
@@ -1665,7 +1709,7 @@ tr.cl:hover {
   font-size: 14.5px;
 }
 
-/* Label above value, no inner boxes - just one divider above the details */
+
 .tdgrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1823,10 +1867,7 @@ td.num {
   min-height: 42px;
 }
 
-/* create / edit form - follows the hand-drawn layout:
-   row 1  invoice details (full width)
-   row 2  left: seller + bill to   |   right: line items + totals
-   row 3  Save draft (left)        |   Generate invoice (right)          */
+
 .invf {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
@@ -1851,7 +1892,7 @@ td.num {
   min-height: 0;
 }
 
-/* left containers: compact inputs so everything fits, no scrollbar needed */
+
 .invl > .card {
   min-height: 0;
   overflow: visible;
@@ -1916,7 +1957,7 @@ td.num {
   grid-column: 1 / -1;
 }
 
-/* fixed height = header + 3 rows; the 4th item onwards scrolls inside */
+
 .li {
   height: 178px;
   overflow: auto;
@@ -2015,7 +2056,7 @@ td.num {
   color: var(--gbd);
 }
 
-/* bottom action row: same two columns as the body above */
+
 .invact {
   grid-column: 1 / -1;
   display: grid;
@@ -2046,7 +2087,7 @@ td.num {
   min-width: 170px;
 }
 
-/* invoice document (view / print) */
+
 .inv-doc {
   background: #fff;
   padding: 34px 38px;
@@ -2200,7 +2241,7 @@ td.num {
    Overview
    ============================================================ */
 
-/* metric cards are bigger now, so the containers below are shorter */
+
 .ovw {
   grid-template-rows: auto auto 300px 380px;
   gap: 14px;
@@ -2325,7 +2366,7 @@ td.num {
   font-weight: 800;
 }
 
-/* Quick actions: one action per line */
+
 .qcol {
   display: grid;
   grid-template-columns: 1fr;
@@ -2398,9 +2439,7 @@ td.num {
 
 
 
-/* ============================================================
-   Page header (Back + title) and single-row toolbars
-   ============================================================ */
+
 
 .phead {
   display: flex;
@@ -2439,12 +2478,11 @@ td.num {
   white-space: nowrap;
 }
 
-/* space between the page heading and the chat / notification container */
+
 .page.fit > .phead {
   margin-bottom: 14px;
 }
 
-/* slightly smaller text inside lists and list-like containers */
 th {
   font-size: 10.5px;
 }
@@ -2484,7 +2522,7 @@ th {
 
 
 /* ============================================================
-   Sign in page: premium animated background
+   Sign in page
    ============================================================ */
 
 .auth .bg {
@@ -2495,7 +2533,7 @@ th {
   z-index: 0;
 }
 
-/* soft blurred colour orbs that drift slowly */
+
 .auth .orb {
   position: absolute;
   border-radius: 50%;
@@ -2533,7 +2571,7 @@ th {
   animation-delay: -11s;
 }
 
-/* glass curves in the corners */
+
 .auth .curve {
   position: absolute;
   border-radius: 50%;
@@ -2577,7 +2615,7 @@ th {
   animation-delay: -2s;
 }
 
-/* dotted grid that lights up around the cursor */
+
 .auth .grid-dots {
   position: absolute;
   inset: 0;
@@ -2587,7 +2625,7 @@ th {
   mask-image: radial-gradient(circle 260px at var(--mx) var(--my), #000, transparent 100%);
 }
 
-/* soft spotlight that follows the cursor */
+
 .auth .glow {
   position: absolute;
   width: 560px;
@@ -2617,17 +2655,13 @@ th {
   }
 }
 
-/* ============================================================
-   Spacing: more room below metric cards (every page)
-   ============================================================ */
+
 
 .mtr {
   margin-bottom: 10px;
 }
 
-/* ============================================================
-   Scrollbars: one slim style everywhere, inset from the edge
-   ============================================================ */
+
 
 *::-webkit-scrollbar {
   width: 14px;
@@ -2670,7 +2704,7 @@ th {
   background: transparent;
 }
 
-/* lists with a sticky header: start the scrollbar under the header */
+
 .tbl::-webkit-scrollbar-track:vertical {
   margin-top: 46px;
 }
@@ -2917,4 +2951,98 @@ th {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 14px;
+}
+
+/* ============================================================
+   Quotes (reuses the invoice layout classes above)
+   ============================================================ */
+
+/* approved status pill */
+.pill.Approved {
+  background: #d3ebdb;
+  color: #1f6b3a;
+}
+
+/* service category chips */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.chip {
+  border: 1px solid var(--bd);
+  background: var(--pw3);
+  color: var(--mu);
+  border-radius: 99px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  transition: .2s;
+}
+
+.chip:hover {
+  background: #d3e6f2;
+  color: var(--gbd);
+}
+
+.chip.on {
+  background: var(--gb);
+  border-color: var(--gb2);
+  color: var(--navy);
+}
+
+/* commercial terms textarea inside the compact quote form */
+.invf textarea {
+  padding: 5px 11px;
+  line-height: 1.4;
+  border-radius: 6px;
+  resize: none;
+}
+
+.termsl {
+  margin-top: 2px;
+}
+
+/* quote line item table has 7 columns: #, deliverable, qty, price, tax, total, remove */
+.qli table {
+  min-width: 660px;
+}
+
+.qli td:nth-child(3) {
+  width: 70px;
+}
+
+.qli td:nth-child(4) {
+  width: 110px;
+}
+
+.qli td:nth-child(5) {
+  width: 76px;
+}
+
+.qli td:nth-child(6) {
+  width: 120px;
+  white-space: nowrap;
+}
+
+/* commercial terms on the quote document */
+.qterms {
+  margin: 18px 0 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--bd);
+}
+
+.qterms .cap {
+  display: block;
+  letter-spacing: .08em;
+  margin-bottom: 4px;
+}
+
+.qterms p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.55;
+  font-size: 13px;
 }

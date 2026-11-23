@@ -408,13 +408,14 @@ textarea:focus {
 }
 
 .side {
-  margin: 12px 0 12px 12px;
+  margin: 20px 0 20px 12px;
+  min-height: 0;
   border-radius: 20px;
   background: linear-gradient(180deg, #b3d6ea, #9CC6E0 45%, #86b6d3);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px 0 18px;
+  padding: 18px 0 16px;
   position: relative;
   z-index: 10;
   box-shadow: 0 18px 40px -18px rgba(43, 90, 122, .6);
@@ -422,7 +423,7 @@ textarea:focus {
 
 .side.open {
   align-items: stretch;
-  padding: 20px 16px 18px;
+  padding: 18px 14px 16px;
 }
 
 .sidetoggle {
@@ -452,7 +453,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 26px;
+  margin-bottom: 20px;
 }
 
 .logo {
@@ -492,21 +493,22 @@ textarea:focus {
 
 .navs {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
   align-items: center;
 }
 
 .side.open .navs {
   align-items: stretch;
-  gap: 6px;
+  gap: 10px;
 }
 
 .nav {
   position: relative;
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   border: 0;
   background: none;
   color: rgba(23, 50, 74, .74);
@@ -550,8 +552,8 @@ textarea:focus {
 
 .nd {
   position: absolute;
-  top: 9px;
-  right: 9px;
+  top: 8px;
+  right: 8px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -594,7 +596,7 @@ textarea:focus {
 
 .prof {
   position: relative;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .side.open .prof {
@@ -616,8 +618,8 @@ textarea:focus {
 
 .pav {
   overflow: hidden;
-  width: 46px;
-  height: 46px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 2px solid rgba(23, 50, 74, .35);
   background: rgba(255, 255, 255, .4);
@@ -1402,7 +1404,8 @@ table .pill {
   display: grid;
   gap: 2px;
   height: 150px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   align-content: start;
 }
 
@@ -1551,13 +1554,32 @@ table .pill {
   align-items: stretch;
 }
 
+/* the three top containers are shorter so Recent Activity sits higher */
 .lo-row > .card {
-  min-height: 260px;
+  height: 232px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .lo-scroll {
-  max-height: 260px;
-  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.lo-prog {
+  margin: 10px 0 12px;
+  cursor: pointer;
+}
+
+.lo-prog:hover {
+  color: var(--gbd);
+}
+
+.lo-prog .row {
+  margin-bottom: 4px;
 }
 
 .lo-review {
@@ -1578,6 +1600,27 @@ table .pill {
   display: grid;
   gap: 12px;
   margin-top: 12px;
+}
+
+/* quick actions fit the container, no scroll bar */
+.lo-row .lo-quick {
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+  margin-top: 10px;
+  overflow: hidden;
+  align-content: start;
+}
+
+.lo-row .lo-quick .qbtn {
+  padding: 6px 12px;
+  border-radius: 14px;
+}
+
+.lo-row .lo-quick .qbtn i {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
 }
 
 .lo-act {
@@ -1601,6 +1644,17 @@ table .pill {
   text-align: right;
 }
 
+.lo-meta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.lo-meta small {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
 .lo-act .st.Completed {
   color: var(--gbd);
 }
@@ -1619,6 +1673,13 @@ table .pill {
 
 .lo-act .st.Reassigned {
   color: #5b4a8a;
+}
+
+.lo-act-scroll {
+  max-height: calc(100vh - 540px);
+  min-height: 180px;
+  overflow: auto;
+  margin-top: 4px;
 }
 
 /* Employee overview */
@@ -2021,24 +2082,25 @@ table .pill {
 }
 
 
+/* quick actions fit the container, no scroll bar */
 .eo-quick .lo-quick {
   flex: 1;
   min-height: 0;
   gap: 8px;
   margin-top: 10px;
-  overflow: auto;
+  overflow: hidden;
   align-content: start;
 }
 
 .eo-quick .qbtn {
-  padding: 7px 12px;
+  padding: 6px 12px;
   border-radius: 14px;
 }
 
 .eo-quick .qbtn i {
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
 }
 
 
@@ -2144,7 +2206,7 @@ table .pill {
   border-radius: 50%;
   filter: blur(60px);
   opacity: .75;
-  animation: drift 18s ease-in-out infinite alternate;
+  animation: drift 12s ease-in-out infinite alternate;
 }
 
 .auth .o1 {
@@ -2161,7 +2223,7 @@ table .pill {
   right: 8%;
   bottom: -220px;
   background: radial-gradient(circle, #6fa9cf, rgba(111, 169, 207, 0) 70%);
-  animation-duration: 22s;
+  animation-duration: 15s;
   animation-delay: -6s;
 }
 
@@ -2172,7 +2234,7 @@ table .pill {
   top: 8%;
   background: radial-gradient(circle, #ffffff, rgba(255, 255, 255, 0) 70%);
   opacity: .55;
-  animation-duration: 26s;
+  animation-duration: 17s;
   animation-delay: -11s;
 }
 
@@ -2183,7 +2245,7 @@ table .pill {
   border: 1px solid rgba(255, 255, 255, .55);
   background: linear-gradient(145deg, rgba(255, 255, 255, .38), rgba(255, 255, 255, .02) 65%);
   box-shadow: inset 0 0 60px rgba(255, 255, 255, .18);
-  animation: bob 14s ease-in-out infinite alternate;
+  animation: bob 9s ease-in-out infinite alternate;
 }
 
 .auth .c1 {
@@ -2198,7 +2260,7 @@ table .pill {
   height: 340px;
   left: -120px;
   bottom: -120px;
-  animation-duration: 18s;
+  animation-duration: 12s;
   animation-delay: -4s;
 }
 
@@ -2207,7 +2269,7 @@ table .pill {
   height: 640px;
   right: -260px;
   top: -280px;
-  animation-duration: 20s;
+  animation-duration: 13s;
   animation-delay: -8s;
 }
 
@@ -2216,30 +2278,52 @@ table .pill {
   height: 400px;
   right: -140px;
   top: -150px;
-  animation-duration: 16s;
+  animation-duration: 11s;
   animation-delay: -2s;
-}
-
-
-.auth .grid-dots {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(rgba(23, 50, 74, .28) 1.2px, transparent 1.6px);
-  background-size: 30px 30px;
-  -webkit-mask-image: radial-gradient(circle 260px at var(--mx) var(--my), #000, transparent 100%);
-  mask-image: radial-gradient(circle 260px at var(--mx) var(--my), #000, transparent 100%);
 }
 
 
 .auth .glow {
   position: absolute;
-  width: 560px;
-  height: 560px;
+  width: 620px;
+  height: 620px;
   left: var(--mx);
   top: var(--my);
-  transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0) 62%);
-  transition: left .35s ease-out, top .35s ease-out;
+  translate: -50% -50%;
+  background: radial-gradient(circle closest-side, rgba(255, 255, 255, .32), rgba(255, 255, 255, .16) 40%, rgba(255, 255, 255, .05) 72%, rgba(255, 255, 255, 0) 100%);
+  filter: blur(36px);
+  transition: left .14s ease-out, top .14s ease-out;
+}
+
+/* slow swirling aurora that trails the cursor */
+.auth .glow.g2 {
+  width: 560px;
+  height: 560px;
+  background: conic-gradient(from 0deg, rgba(255, 255, 255, 0), rgba(196, 229, 247, .6) 18%, rgba(111, 169, 207, .38) 38%, rgba(255, 255, 255, 0) 55%, rgba(214, 236, 250, .5) 78%, rgba(255, 255, 255, 0));
+  -webkit-mask-image: radial-gradient(circle closest-side, #000 15%, transparent 100%);
+  mask-image: radial-gradient(circle closest-side, #000 15%, transparent 100%);
+  filter: blur(26px);
+  opacity: .8;
+  transition: left .5s cubic-bezier(.2, .8, .2, 1), top .5s cubic-bezier(.2, .8, .2, 1);
+  animation: auroraSpin 14s linear infinite;
+}
+
+/* small bright core that sticks to the cursor */
+.auth .glow.g3 {
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle closest-side, rgba(255, 255, 255, .55), rgba(255, 255, 255, .18) 55%, rgba(255, 255, 255, 0) 100%);
+  filter: blur(14px);
+  transition: left .04s linear, top .04s linear;
+}
+
+@keyframes auroraSpin {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
 }
 
 @keyframes drift {
@@ -2530,5 +2614,254 @@ table .pill {
   }
   .pfrow {
     padding: 10px 0;
+  }
+}
+
+/* ============================================================
+   Compact sidebar on short screens
+   ============================================================ */
+
+@media (max-height: 800px) {
+  .nav {
+    width: 42px;
+    height: 42px;
+  }
+  .side.open .nav {
+    height: 42px;
+  }
+  .navs {
+    gap: 12px;
+  }
+  .brand {
+    margin-bottom: 14px;
+  }
+  .side .logo {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    border-radius: 13px;
+  }
+  .pav {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-height: 680px) {
+  .nav {
+    width: 36px;
+    height: 36px;
+  }
+  .side.open .nav {
+    height: 36px;
+  }
+  .navs {
+    gap: 7px;
+  }
+}
+
+/* ============================================================
+   Chats: Chats / Teams selector
+   ============================================================ */
+
+.ctabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 10px;
+  background: var(--pw3);
+  border-radius: 14px;
+}
+
+.chl .ctabs button {
+  padding: 8px 10px;
+  border-radius: 11px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--mu);
+  transition: .2s;
+}
+
+.chl .ctabs button:hover {
+  background: rgba(255, 255, 255, .6);
+}
+
+.chl .ctabs button.on,
+.chl .ctabs button.on:hover {
+  background: #fff;
+  color: var(--navy);
+  box-shadow: 0 6px 14px -8px rgba(23, 50, 74, .5);
+}
+
+/* ============================================================
+   Project details: info card + team card (hand sketch layout)
+   ============================================================ */
+
+.pdtop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.pdc {
+  height: 236px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 18px 24px;
+}
+
+.pdc .cap {
+  font-size: 10.5px;
+  letter-spacing: .07em;
+}
+
+.pddesc {
+  margin: 8px 0 12px;
+  color: var(--ink);
+}
+
+.pdlead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.pdlead b {
+  font-size: 15px;
+}
+
+.pdfoot {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.pdprog .cap,
+.pdmeta .cap {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.pdbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pdbar .bar {
+  flex: none;
+  width: 200px;
+  height: 7px;
+}
+
+.pdbar b {
+  font-size: 15px;
+  color: var(--gbd);
+}
+
+.pdmeta {
+  text-align: right;
+}
+
+.pdmeta b {
+  font-size: 15px;
+}
+
+.pdhead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pdhead .cap {
+  display: block;
+}
+
+.pdtn {
+  display: block;
+  font-size: 18px;
+  margin: 2px 0 12px;
+  color: var(--navy);
+}
+
+/* members dropdown */
+.pddd {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.pdddh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 14px;
+  border: 0;
+  background: var(--pw3);
+  color: var(--gbd);
+  font-weight: 700;
+  font-size: 12.5px;
+  text-align: left;
+  transition: .2s;
+}
+
+.pdddh:hover {
+  background: #d3e6f2;
+}
+
+.pdddh svg {
+  transition: rotate .2s;
+}
+
+.pddd.open .pdddh svg {
+  rotate: 90deg;
+}
+
+.pdmem {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 14px;
+}
+
+.pdnone {
+  display: block;
+  padding: 12px 0;
+  font-size: 13px;
+}
+
+.pdm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--bd);
+}
+
+.pdm:first-child {
+  border-top: 0;
+}
+
+.pdm small {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+@media (max-width: 980px) {
+  .pdtop {
+    grid-template-columns: 1fr;
   }
 }

@@ -262,7 +262,7 @@ export interface Route {
   id?: string;
 }
 
-export type ModalState = { k: "assign" } | { k: "proj" } | { k: "team"; x: Project };
+export type ModalState = { k: "proj" } | { k: "team"; x: Project };
 type SetModal = (m: ModalState | null) => void;
 
 
@@ -319,7 +319,9 @@ interface QuoteFormState {
   no: string;
   date: string;
   valid: string;
-  service: string;
+  svc: string;
+  extras: string[];
+  newCat: string;
   customer: string;
   project: string;
   contact: string;
@@ -337,23 +339,10 @@ interface ProfileForm {
   pw: string;
 }
 
-interface AssignForm {
-  title: string;
-  desc: string;
-  project: string;
-  assignee: string;
-  priority: TaskPriority;
-  due: string;
-  items: string[];
-  ci: string;
-}
-
 interface NewProjectForm {
   name: string;
   desc: string;
   due: string;
-  team: string;
-  members: string[];
   lead: string;
 }
 
@@ -434,14 +423,9 @@ const INV_STATUS: InvoiceStatus[] = ["Paid", "Pending", "Overdue", "Draft"];
 
 const QUOTE_STATUS: QuoteStatus[] = ["Draft", "Pending", "Review", "Approved"];
 
-/** [value stored on the quote, short label shown on the chip in the form] */
-const QUOTE_SERVICES: [string, string][] = [
-  ["Web application", "Web app"],
-  ["Website", "Website"],
-  ["Custom app", "Custom app"],
-  ["Mobile app", "Mobile app"],
-  ["Other services", "Other"],
-];
+/** Default service categories in the quote form dropdown (plus "Others" for a custom one) */
+const QUOTE_SERVICES: string[] = ["Web application", "Website", "Mobile app"];
+const OTHER_SERVICE = "Others";
 
 const DEFAULT_QUOTE_TERMS =
   "Milestones: 40% advance, 40% on delivery, 20% on handover.\nExclusions: third-party licences and hosting. Quote is valid until the date shown.";
@@ -463,7 +447,6 @@ const FIT_PAGES = [
   "taskd",
   "board",
   "chat",
-  "dm",
   "notif",
 ];
 
@@ -1022,7 +1005,7 @@ const MOCK_STATE: AppState = {
         ["Retail mobile app", 1, 280000, 18],
         ["Push notification setup", 1, 25000, 18],
       ]),
-    makeQuote("QT/26-27/0028", "Sundaram Logistics", "Fleet tracking app", "Custom app",
+    makeQuote("QT/26-27/0028", "Sundaram Logistics", "Fleet tracking web app", "Web application",
       "2026-11-10", "2026-12-10", "Review", [
         ["Fleet tracking app", 1, 420000, 18],
       ]),
@@ -1041,14 +1024,14 @@ const MOCK_STATE: AppState = {
       "2026-10-10", "2026-11-09", "Approved", [
         ["Website design and development", 1, 80000, 18],
       ]),
-    makeQuote("QT/26-27/0024", "Aivam Corporation", "Operations custom app", "Custom app",
+    makeQuote("QT/26-27/0024", "Aivam Corporation", "Operations mobile app", "Mobile app",
       "2026-10-04", "2026-10-19", "Review", [
         ["Requirement analysis", 1, 40000, 18],
-        ["Custom app development", 1, 360000, 18],
+        ["Mobile app development", 1, 360000, 18],
       ]),
-    makeQuote("QT/26-27/0023", "Retail client", "Consulting engagement", "Other services",
+    makeQuote("QT/26-27/0023", "Retail client", "Retail storefront website", "Website",
       "2026-09-28", "2026-10-28", "Pending", [
-        ["Consulting hours", 20, 1800, 18],
+        ["Storefront design and build", 1, 36000, 18],
       ]),
     makeQuote("QT/26-27/0022", "Green Pixel Studio", "Studio mobile app", "Mobile app",
       "2026-09-24", "2026-10-24", "Approved", [
@@ -1093,14 +1076,6 @@ const MOCK_STATE: AppState = {
     "Karan Mehta": [],
   },
   notifs: [
-    {
-      id: 1,
-      txt: "Task TASK-1044 assigned to you",
-      cat: "Task Assigned",
-      task: "TASK-1044",
-      un: true,
-      t: "10m ago",
-    },
     {
       id: 2,
       txt: "Billing Platform reached 60% progress",
@@ -1240,11 +1215,6 @@ export const api: AdminApi = { auth: demoAuthApi, data: demoDataApi };
 const allMembers = (projects: Project[]): string[] => [...new Set(projects.flatMap((p) => p.members))];
 
 const teamNames = (projects: Project[]): string[] => [...new Set(projects.map((p) => p.team))];
-
-const membersOfProject = (projects: Project[], projectName: string): string[] => {
-  const p = projects.find((x) => x.name === projectName);
-  return p ? p.members : [];
-};
 
 
 const presence = (name: string, me: string): PresenceStatus => {
@@ -1476,8 +1446,9 @@ function Auth({ c }: { c: Pick<AppContext, "up"> }) {
         <i className="curve c2" />
         <i className="curve c3" />
         <i className="curve c4" />
-        <i className="grid-dots" />
+        <i className="glow g2" />
         <i className="glow" />
+        <i className="glow g3" />
       </div>
       <div className="hero">
         <div className="logo" style={{ marginBottom: 10 }}>W</div>
@@ -1659,17 +1630,23 @@ function Auth({ c }: { c: Pick<AppContext, "up"> }) {
 // 9. CHAT AND MESSAGING (team chat and direct messages)
 // ============================================================
 
-function Chat({ c, kind }: { c: AppContext; kind: "chat" | "dm" }) {
-  const chans = kind === "chat"
-    ? CHAT_CHANNELS
-    : EMPLOYEE_NAMES.filter((p) => p !== c.u.name);
-  const [a, setA] = useState(chans[0]),
+function Chat({ c }: PageProps) {
+  const dmList = EMPLOYEE_NAMES.filter((p) => p !== c.u.name);
+  const [tab, setTab] = useState<"dm" | "team">("dm"),
+    [a, setA] = useState(dmList[0]),
     [x, setX] = useState(""),
     [file, setFile] = useState(""),
     [rec, setRec] = useState(false),
     [call, setCall] = useState<string | null>(null),
     [q, setQ] = useState("");
+  const chans = tab === "team" ? CHAT_CHANNELS : dmList;
   const list = c.s.msgs[a] || [];
+
+  const switchTab = (n: "dm" | "team") => {
+    setTab(n);
+    setQ("");
+    setA(n === "team" ? CHAT_CHANNELS[0] : dmList[0]);
+  };
 
   const send = (e: FormEvent) => {
     e.preventDefault();
@@ -1690,10 +1667,18 @@ function Chat({ c, kind }: { c: AppContext; kind: "chat" | "dm" }) {
   return (
     <div className="card chat">
       <div className="chl">
+        <div className="ctabs">
+          <button type="button" className={tab === "dm" ? "on" : ""} onClick={() => switchTab("dm")}>
+            Chats
+          </button>
+          <button type="button" className={tab === "team" ? "on" : ""} onClick={() => switchTab("team")}>
+            Teams
+          </button>
+        </div>
         <div className="search">
           <span><Icon n="Search" s={18} /></span>
           <input
-            placeholder={kind === "dm" ? "Search user" : "Search team"}
+            placeholder={tab === "dm" ? "Search user" : "Search team"}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -1701,7 +1686,7 @@ function Chat({ c, kind }: { c: AppContext; kind: "chat" | "dm" }) {
         {chans.filter((n) => n.toLowerCase().includes(q.toLowerCase())).map((n) => (
           <button key={n} className={a === n ? "on" : ""} onClick={() => setA(n)}>
             {n}
-            {kind === "dm" && <small className="mu"> · online</small>}
+            {tab === "dm" && <small className="mu"> · online</small>}
           </button>
         ))}
       </div>
@@ -1890,8 +1875,8 @@ function Overview({ c, setModal, prog }: { c: AppContext; setModal: SetModal; pr
 
   const actions: [string, string, string, () => void][] = [
     ["Plus", "Create Project", "Start a new project", () => setModal({ k: "proj" })],
-    ["UserPlus", "Assign Task", "Delegate work to a member", () => setModal({ k: "assign" })],
     ["FileText", "Create Invoice", "Generate a new invoice", () => go({ p: "invoicenew" })],
+    ["ClipboardList", "Create Quote", "Generate a new quote", () => go({ p: "quotenew" })],
     ["Columns3", "View Team Board", "Kanban of all tasks", () => go({ p: "board" })],
   ];
 
@@ -2752,6 +2737,7 @@ function QuoteList({ c }: PageProps) {
   const sentThisMonth = quotes.filter((x) => x.status !== "Draft" && x.date.startsWith(ym));
   const awaiting = sentThisMonth.filter((x) => x.status === "Pending").length;
   const approved = quotes.filter((x) => x.status === "Approved");
+  const services = [...new Set([...QUOTE_SERVICES, ...quotes.map((x) => x.service)])];
 
   const metrics: MetricItem[] = [
     ["FileText", "Draft Quotes", drafts.length, "Need review"],
@@ -2784,7 +2770,7 @@ function QuoteList({ c }: PageProps) {
         </div>
         <select value={sv} onChange={(e) => setSv(e.target.value)}>
           <option value="All">All services</option>
-          {QUOTE_SERVICES.map(([v]) => <option key={v}>{v}</option>)}
+          {services.map((v) => <option key={v}>{v}</option>)}
         </select>
         <select value={st} onChange={(e) => setSt(e.target.value)}>
           <option value="All">All statuses</option>
@@ -2845,7 +2831,9 @@ function QuoteForm({ c, edit }: { c: AppContext; edit?: Quote | null }) {
         no: edit.no,
         date: edit.date,
         valid: edit.valid,
-        service: edit.service,
+        svc: edit.service,
+        extras: [],
+        newCat: "",
         customer: edit.customer,
         project: edit.project,
         contact: edit.contact,
@@ -2865,14 +2853,16 @@ function QuoteForm({ c, edit }: { c: AppContext; edit?: Quote | null }) {
       no: nextNo(fy),
       date,
       valid: isoOf(dd),
-      service: QUOTE_SERVICES[0][0],
+      svc: QUOTE_SERVICES[0],
+      extras: [],
+      newCat: "",
       customer: "",
       project: "",
       contact: "",
       addr: "",
       gst: "",
       items: [1, 2, 3].map(blankItem),
-      terms: DEFAULT_QUOTE_TERMS,
+      terms: "",
     };
   });
   const [err, setErr] = useState("");
@@ -2895,6 +2885,17 @@ function QuoteForm({ c, edit }: { c: AppContext; edit?: Quote | null }) {
 
   const t = calcQuoteTotals(f.items);
 
+  // dropdown options: 3 defaults + any custom category already used or added here
+  const svcOptions = [...new Set([...QUOTE_SERVICES, ...quotes.map((x) => x.service), ...f.extras])];
+  const addCat = () => {
+    const v = f.newCat.trim();
+    if (!v) {
+      return;
+    }
+    const hit = svcOptions.find((x) => x.toLowerCase() === v.toLowerCase());
+    setF({ ...f, svc: hit || v, extras: hit ? f.extras : [...f.extras, v], newCat: "" });
+  };
+
   const save = (status: QuoteStatus) => {
     const items = f.items.filter((x) => x.d.trim() || Number(x.r));
     const no = f.no.trim();
@@ -2903,6 +2904,10 @@ function QuoteForm({ c, edit }: { c: AppContext; edit?: Quote | null }) {
     }
     if (!f.customer.trim()) {
       return setErr("Enter the customer name.");
+    }
+    const service = f.svc === OTHER_SERVICE ? f.newCat.trim() : f.svc;
+    if (!service) {
+      return setErr("Enter the service category.");
     }
     if (!items.length) {
       return setErr("Add at least one line item.");
@@ -2923,7 +2928,7 @@ function QuoteForm({ c, edit }: { c: AppContext; edit?: Quote | null }) {
       date: f.date,
       valid: f.valid,
       status,
-      service: f.service,
+      service,
       customer: f.customer.trim(),
       project: f.project.trim(),
       contact: f.contact.trim(),
@@ -3033,19 +3038,35 @@ function QuoteForm({ c, edit }: { c: AppContext; edit?: Quote | null }) {
               </label>
             </div>
           </div>
-          <div className="card">
+          <div className="card svcc">
             <h3>Service category</h3>
-            <div className="chips">
-              {QUOTE_SERVICES.map(([v, label]) => (
-                <button
-                  key={v}
-                  type="button"
-                  className={"chip" + (f.service === v ? " on" : "")}
-                  onClick={() => setF({ ...f, service: v })}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="svcrow">
+              <label>
+                Category
+                <select value={f.svc} onChange={(e) => setF({ ...f, svc: e.target.value })}>
+                  {svcOptions.map((v) => <option key={v}>{v}</option>)}
+                  <option value={OTHER_SERVICE}>{OTHER_SERVICE}</option>
+                </select>
+              </label>
+              {f.svc === OTHER_SERVICE && (
+                <>
+                  <label>
+                    New category
+                    <input
+                      placeholder="Type a category"
+                      value={f.newCat}
+                      onChange={(e) => setF({ ...f, newCat: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addCat();
+                        }
+                      }}
+                    />
+                  </label>
+                  <button type="button" className="btn sm" onClick={addCat}>Add</button>
+                </>
+              )}
             </div>
             <label className="termsl">
               Commercial terms
@@ -3401,24 +3422,12 @@ function NewProjectModal({ c, setModal }: ModalProps) {
     name: "",
     desc: "",
     due: "2026-12-31",
-    team: "",
-    members: [],
     lead: "",
   });
-  const [draft, setDraft] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
   const shown = api.auth.listUsers().filter((x) =>
     (x.name + " " + x.email + " " + x.username).toLowerCase().includes(q.toLowerCase()));
-  const dirty = draft.length !== f.members.length || draft.some((n) => !f.members.includes(n));
-
-  const saveMembers = () => {
-    if (!draft.length) {
-      return setErr("Select at least one team member.");
-    }
-    setErr("");
-    setF({ ...f, members: draft, lead: draft.includes(f.lead) ? f.lead : "" });
-  };
 
   return (
     <Modal title="Create Project" onClose={() => setModal(null)}>
@@ -3428,9 +3437,6 @@ function NewProjectModal({ c, setModal }: ModalProps) {
           e.preventDefault();
           if (s.projects.some((x) => x.name.toLowerCase() === f.name.trim().toLowerCase())) {
             return setErr("A project with this name already exists.");
-          }
-          if (!f.members.length || dirty) {
-            return setErr("Select the team members and click Save.");
           }
           if (!f.lead) {
             return setErr("Choose a team lead.");
@@ -3442,8 +3448,8 @@ function NewProjectModal({ c, setModal }: ModalProps) {
               name: f.name.trim(),
               desc: f.desc,
               lead: f.lead,
-              team: f.team.trim(),
-              members: f.members,
+              team: f.lead + "'s Team",
+              members: [f.lead],
               due: f.due,
               status: "Pending",
             });
@@ -3471,27 +3477,16 @@ function NewProjectModal({ c, setModal }: ModalProps) {
             onChange={(e) => setF({ ...f, desc: e.target.value })}
           />
         </label>
-        <div className="row">
-          <label style={{ flex: 1 }}>
-            Due Date
-            <input
-              type="date"
-              value={f.due}
-              onChange={(e) => setF({ ...f, due: e.target.value })}
-            />
-          </label>
-          <label style={{ flex: 1 }}>
-            Team Name *
-            <input
-              required
-              placeholder="e.g. Alpha Engineering"
-              value={f.team}
-              onChange={(e) => setF({ ...f, team: e.target.value })}
-            />
-          </label>
-        </div>
+        <label>
+          Due Date
+          <input
+            type="date"
+            value={f.due}
+            onChange={(e) => setF({ ...f, due: e.target.value })}
+          />
+        </label>
         <div className="mp">
-          <span className="cap">Select Team Members</span>
+          <span className="cap">Team Lead *</span>
           <div className="search" style={{ maxWidth: "none" }}>
             <span><Icon n="Search" s={18} /></span>
             <input
@@ -3509,40 +3504,103 @@ function NewProjectModal({ c, setModal }: ModalProps) {
                 </span>
                 <input
                   type="checkbox"
-                  checked={draft.includes(x.name)}
-                  onChange={() =>
-                    setDraft(
-                      draft.includes(x.name)
-                        ? draft.filter((n) => n !== x.name)
-                        : [...draft, x.name],
-                    )}
+                  checked={f.lead === x.name}
+                  onChange={() => {
+                    setF({ ...f, lead: f.lead === x.name ? "" : x.name });
+                    setErr("");
+                  }}
                 />
               </label>
             ))}
             {!shown.length && <span className="mu">No matching users.</span>}
           </div>
           <div className="mfoot">
-            <span>{draft.length} selected{!dirty && f.members.length > 0 && " · saved"}</span>
-            <button type="button" className="btn sm" onClick={saveMembers}>Save</button>
+            <span>{f.lead ? "Team lead: " + f.lead : "No team lead selected"}</span>
           </div>
         </div>
-        <label>
-          Team Lead *
-          <select
-            value={f.lead}
-            disabled={!f.members.length}
-            onChange={(e) => setF({ ...f, lead: e.target.value })}
-          >
-            <option value="">
-              {f.members.length ? "Select team lead" : "Save team members first"}
-            </option>
-            {f.members.map((m) => <option key={m}>{m}</option>)}
-          </select>
-        </label>
         {err && <div className="err">{err}</div>}
         <button className="btn">Create Project</button>
       </form>
     </Modal>
+  );
+}
+
+function ProjectDetail({ c, id }: { c: AppContext; id: string }) {
+  const { s, go } = c;
+  const x = s.projects.find((y) => y.id === id);
+  const [open, setOpen] = useState(true);
+  if (!x) {
+    return (
+      <div className="grid fit">
+        <PageHead c={c} title="Project" />
+        <div className="card">Not found.</div>
+      </div>
+    );
+  }
+  const pr = projectProgress(s.tasks, x);
+  const others = x.members.filter((m) => m !== x.lead);
+  const taskCount = (m: string) =>
+    s.tasks.filter((t) => t.project === x.name && t.assignee === m).length;
+
+  return (
+    <div className="grid fit">
+      <PageHead c={c} title="Project Details" />
+      <div className="pdtop">
+        <div className="card pdc">
+          <div className="row sp">
+            <div>
+              <span className="mu">{x.id}</span>
+              <h2 style={{ margin: "2px 0" }}>{x.name}</h2>
+            </div>
+            <Pill v={projectStatus(s.tasks, x)} />
+          </div>
+          <p className="pddesc">{x.desc}</p>
+          <div className="pdlead">
+            <span className="cap mu">TEAM LEAD</span>
+            <b>{x.lead}</b>
+          </div>
+          <div className="pdfoot">
+            <div className="pdprog">
+              <span className="cap mu">PROGRESS</span>
+              <div className="pdbar">
+                <Bar v={pr} />
+                <b>{pr}%</b>
+              </div>
+            </div>
+            <div className="pdmeta">
+              <span className="cap mu">DUE DATE</span>
+              <b>{x.due}</b>
+            </div>
+          </div>
+        </div>
+        <div className="card pdc">
+          <span className="cap mu">TEAM NAME</span>
+          <b className="pdtn">{x.team}</b>
+          <div className={"pddd" + (open ? " open" : "")}>
+            <button type="button" className="pdddh" onClick={() => setOpen(!open)}>
+              <span>Members ({others.length})</span>
+              <Icon n="ChevronRight" s={16} />
+            </button>
+            {open && (
+              <div className="pdmem">
+                {others.map((m) => {
+                  const n = taskCount(m);
+                  return (
+                    <div key={m} className="pdm">
+                      <span className="avatar">{initials(m)}</span>
+                      <span>{m}</span>
+                      <small className="mu">{n} {n === 1 ? "task" : "tasks"}</small>
+                    </div>
+                  );
+                })}
+                {!others.length && <span className="mu">No other members yet.</span>}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <TaskTable list={s.tasks.filter((t) => t.project === x.name)} size="mid" go={go} />
+    </div>
   );
 }
 
@@ -3569,7 +3627,6 @@ function TeamModal({ c, setModal, x }: ModalProps & { x: Project }) {
           </div>
         );
       })}
-      <button className="btn" onClick={() => setModal({ k: "assign" })}>Assign Task</button>
     </Modal>
   );
 }
@@ -3577,151 +3634,6 @@ function TeamModal({ c, setModal, x }: ModalProps & { x: Project }) {
 // ============================================================
 // 15. TASKS, ASSIGNMENTS AND REPORTS
 // ============================================================
-
-function AssignTaskModal({ c, setModal }: ModalProps) {
-  const { s, up, u } = c;
-  const projects = s.projects;
-  const mems = (pj: string) => membersOfProject(s.projects, pj);
-  const [f, setF] = useState<AssignForm>({
-    title: "",
-    desc: "",
-    project: projects[0]?.name || "",
-    assignee: "",
-    priority: "Medium",
-    due: "2026-11-30",
-    items: [],
-    ci: "",
-  });
-  const ms = mems(f.project);
-  const asg = ms.includes(f.assignee) ? f.assignee : ms[0] || "";
-  const addItem = () => {
-    const t = f.ci.trim();
-    if (t) {
-      setF({ ...f, items: [...f.items, t], ci: "" });
-    }
-  };
-
-  return (
-    <Modal title="Assign Task" onClose={() => setModal(null)}>
-      {!projects.length
-        ? <p className="mu">There are no projects yet. Create a project first.</p>
-        : (
-          <form
-            className="grid"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!asg) {
-                return;
-              }
-              const id = "TASK-" +
-                (Math.max(1100, ...s.tasks.map((x) => parseInt(x.id.slice(5)) || 0)) + 1);
-              up((d) => {
-                d.tasks.unshift({
-                  ...makeTask(id, f.title, f.project, asg, u.name, f.priority, f.due, "To Do"),
-                  desc: f.desc.trim() || "Assigned task.",
-                  checklist: f.items.map((t) => ({ t, done: false })),
-                });
-                addNotification(d, `${u.name} assigned you ${id}`, "Task Assigned", id);
-              });
-              setModal(null);
-              c.toast("Task assigned to " + asg);
-            }}
-          >
-            <label>
-              Title *
-              <input
-                required
-                placeholder="e.g. Implement Webhook retry architecture"
-                value={f.title}
-                onChange={(e) => setF({ ...f, title: e.target.value })}
-              />
-            </label>
-            <label>
-              Description
-              <textarea
-                rows={3}
-                placeholder="Requirements, endpoints, expected outcome..."
-                value={f.desc}
-                onChange={(e) => setF({ ...f, desc: e.target.value })}
-              />
-            </label>
-            <label>
-              Project *
-              <select
-                value={f.project}
-                onChange={(e) => setF({ ...f, project: e.target.value, assignee: "" })}
-              >
-                {projects.map((p) => <option key={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-            <label>
-              Assigned to *
-              <select value={asg} onChange={(e) => setF({ ...f, assignee: e.target.value })}>
-                {ms.map((m) => <option key={m}>{m}</option>)}
-              </select>
-            </label>
-            <div className="row">
-              <label style={{ flex: 1 }}>
-                Priority
-                <select
-                  value={f.priority}
-                  onChange={(e) => setF({ ...f, priority: e.target.value as TaskPriority })}
-                >
-                  <option>High</option>
-                  <option>Medium</option>
-                  <option>Low</option>
-                </select>
-              </label>
-              <label style={{ flex: 1 }}>
-                Due Date
-                <input
-                  type="date"
-                  value={f.due}
-                  onChange={(e) => setF({ ...f, due: e.target.value })}
-                />
-              </label>
-            </div>
-            <div className="cbox">
-              <span className="cap">Checklist</span>
-              <div className="crow">
-                <input
-                  placeholder="Add a checklist item"
-                  value={f.ci}
-                  onChange={(e) => setF({ ...f, ci: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addItem();
-                    }
-                  }}
-                />
-                <button type="button" className="btn sm sec" onClick={addItem}>
-                  <Icon n="Plus" s={16} />
-                  Add
-                </button>
-              </div>
-              {f.items.map((t, i) => (
-                <div key={i} className="cli">
-                  <Icon n="Check" s={16} />
-                  <span>{t}</span>
-                  <button
-                    type="button"
-                    className="link"
-                    aria-label="Remove item"
-                    onClick={() => setF({ ...f, items: f.items.filter((_, j) => j !== i) })}
-                  >
-                    <Icon n="X" s={16} />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button className="btn">Assign Task</button>
-          </form>
-        )}
-    </Modal>
-  );
-}
-
 
 function TaskDetail({ c, id }: { c: AppContext; id: string }) {
   const { s } = c;
@@ -4039,8 +3951,7 @@ function App() {
     ["team", "UsersRound", "Team"],
     ["task", "ListTodo", "Task"],
     ["board", "Columns3", "Team Board"],
-    ["chat", "MessagesSquare", "Team Chat"],
-    ["dm", "MessageCircle", "Direct Message"],
+    ["chat", "MessagesSquare", "Chats"],
     ["notif", "Bell", "Notification"],
   ];
 
@@ -4105,42 +4016,7 @@ function App() {
   }
 
   if (p === "projd") {
-    const x = s.projects.find((y) => y.id === route.id);
-
-    page = !x
-      ? (
-        <div className="grid fit">
-          <PageHead c={c} title="Project" />
-          <div className="card">Not found.</div>
-        </div>
-      )
-      : (
-        <div className="grid fit">
-          <PageHead c={c} title="Project Details" />
-          <div className="card">
-            <div className="row sp">
-              <div>
-                <span className="mu">{x.id}</span>
-                <h2 style={{ margin: "2px 0" }}>{x.name}</h2>
-              </div>
-              <Pill v={pstat(x)} />
-            </div>
-            <p>{x.desc}</p>
-            <div className="mu">Lead <b>{x.lead}</b> · Team {x.team} · Due {x.due}</div>
-            <div style={{ margin: "10px 0" }}><Bar v={prog(x)} /></div>
-            <div className="row">
-              {x.members.map((m) => (
-                <span key={m} className="row"><span className="avatar">{initials(m)}</span>{m}</span>
-              ))}
-            </div>
-          </div>
-          <TaskTable
-            list={s.tasks.filter((t) => t.project === x.name)}
-            size="mid"
-            go={go}
-          />
-        </div>
-      );
+    page = <ProjectDetail key={route.id} c={c} id={route.id || ""} />;
   }
 
   if (p === "team") {
@@ -4174,10 +4050,6 @@ function App() {
             <option value="All">All teams</option>
             {teamNames(projects).map((x) => <option key={x}>{x}</option>)}
           </select>
-          <button className="btn" onClick={() => setModal({ k: "assign" })}>
-            <Icon n="Plus" s={18} />
-            Assign Task
-          </button>
         </div>
         <div className="card tbl fix">
           <table>
@@ -4260,10 +4132,6 @@ function App() {
               <option key={x} value={x}>{x === "All" ? "All priorities" : x}</option>
             ))}
           </select>
-          <button className="btn" onClick={() => setModal({ k: "assign" })}>
-            <Icon n="Plus" s={18} />
-            Assign Task
-          </button>
         </div>
         <TaskTable list={fl} size="fix" go={go} />
       </div>
@@ -4282,8 +4150,8 @@ function App() {
     page = <Profile c={c} />;
   }
 
-  if (p === "chat" || p === "dm") {
-    page = <Chat key={p} c={c} kind={p} />;
+  if (p === "chat") {
+    page = <Chat c={c} />;
   }
 
   if (p === "notif") {
@@ -4370,16 +4238,12 @@ function App() {
           className={"page" + (FIT_PAGES.includes(p) ? " fit" : "")}
           key={JSON.stringify(route)}
         >
-          {["chat", "dm", "notif"].includes(p) && (
-            <PageHead
-              c={c}
-              title={p === "chat" ? "Team Chat" : p === "dm" ? "Direct Message" : "Notifications"}
-            />
+          {["chat", "notif"].includes(p) && (
+            <PageHead c={c} title={p === "chat" ? "Chats" : "Notifications"} />
           )}
           {page}
         </div>
       </main>
-      {modal?.k === "assign" && <AssignTaskModal c={c} setModal={setModal} />}
       {modal?.k === "team" && <TeamModal c={c} setModal={setModal} x={modal.x} />}
       {modal?.k === "proj" && <NewProjectModal c={c} setModal={setModal} />}
       <ToastHost />

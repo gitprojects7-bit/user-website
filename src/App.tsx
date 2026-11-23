@@ -49,26 +49,26 @@ export type WorkspaceId = "tt" | "tm";
 
 export type TaskStatus = "To Do" | "In Progress" | "Stopped" | "Reassigned" | "Review" | "Completed";
 export type TaskPriority = "High" | "Medium" | "Low";
-export type ProjectStatus = "Pending" | "In Progress" | "Completed";
+export type ProjectStatus = "To Do" | "Pending" | "In Progress" | "Completed";
 
 export interface UserAccount {
   name: string;
   addr?: string;
   phone: string;
   email: string;
-  user: string; 
+  user: string;
   pw: string;
   ws: WorkspaceId[];
   photo?: string;
 }
 
+/** A project with no members yet is "To Do": the team lead still has to create its team. */
 export interface Project {
   id: string;
   name: string;
   desc: string;
   lead: string;
   team: string;
- 
   members: string[];
   due: string;
 }
@@ -82,6 +82,8 @@ export interface ChecklistItem {
 export interface TaskLogEntry {
   t: string;
   txt: string;
+  /** epoch ms, used for the "x mins ago" label in Recent Activity */
+  ts?: number;
 }
 
 
@@ -174,7 +176,6 @@ type PageId =
   | "task"
   | "taskd"
   | "chat"
-  | "dm"
   | "notif"
   | "profile";
 
@@ -191,6 +192,7 @@ type ModalState =
   | { k: "reassign"; t: Task }
   | NoteModalState
   | { k: "team"; x: Project }
+  | { k: "createteam"; x: Project }
   | { k: "report"; t: Task };
 
 interface Ctx {
@@ -226,6 +228,22 @@ const ST: TaskStatus[] = ["To Do", "In Progress", "Stopped", "Reassigned", "Revi
 
 
 const FRESH: TaskStatus[] = ["To Do", "Reassigned"];
+
+/** People a team lead can pick from when creating a team */
+const DIRECTORY: string[] = [
+  "Rahul Varma",
+  "Sneha Rao",
+  "Alex Morgan",
+  "Priya Sharma",
+  "Karan Mehta",
+  "Divya Iyer",
+  "Chloe Bennett",
+  "Maya Chen",
+  "Arun Patel",
+  "Neha Gupta",
+];
+
+const emailOf = (n: string): string => n.toLowerCase().replace(/ /g, ".") + "@workflow.com";
 
 
 const DEMO: UserAccount = {
@@ -289,7 +307,42 @@ type IconName = keyof typeof LIB;
 // 3. Helper functions
 // ============================================================
 
-const now = (): string => new Date().toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+const stampOf = (ts: number): string =>
+  new Date(ts).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+
+const now = (): string => stampOf(Date.now());
+
+/** "dd/mm/yy, HH:MM" -> epoch ms (0 when it cannot be read) */
+const parseStamp = (s: string): number => {
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{2}),\s*(\d{2}):(\d{2})/);
+  return m ? new Date(2000 + Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4]), Number(m[5])).getTime() : 0;
+};
+
+/** Time of the latest activity on a task */
+const lastTs = (t: Task): number => {
+  const e = t.log[t.log.length - 1];
+  return e ? (e.ts ?? parseStamp(e.t)) : 0;
+};
+
+/** 23 mins ago, 4 hours ago, 2 days ago */
+const timeAgo = (ts: number): string => {
+  if (!ts) {
+    return "";
+  }
+  const m = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+  if (m < 1) {
+    return "just now";
+  }
+  if (m < 60) {
+    return m + (m === 1 ? " min ago" : " mins ago");
+  }
+  const h = Math.floor(m / 60);
+  if (h < 24) {
+    return h + (h === 1 ? " hour ago" : " hours ago");
+  }
+  const d = Math.floor(h / 24);
+  return d + (d === 1 ? " day ago" : " days ago");
+};
 
 const ini = (n: string): string => n.split(" ").map((x) => x[0]).join("").slice(0, 2);
 
@@ -306,9 +359,11 @@ const fmt = (total: number): string => {
 interface TaskSeedOptions {
   status?: TaskStatus;
   secs?: number;
-  
+
   done?: number;
   log?: [string, string][];
+  /** minutes since the latest activity (demo data for "x mins ago") */
+  ago?: number;
 }
 
 
@@ -323,24 +378,32 @@ const makeTask = (
   due: string,
   items: string[],
   o: TaskSeedOptions = {},
-): Task => ({
-  id,
-  title,
-  project,
-  assignee,
-  by,
-  priority,
-  due,
-  status: o.status || "To Do",
-  desc,
-  secs: o.secs || 0,
-  log: [
-    { t: "12/11/26, 09:00", txt: "Task assigned by " + by },
-    ...(o.log || []).map(([t, txt]) => ({ t, txt })),
-  ],
-  reports: [],
-  checklist: items.map((t, i) => ({ t, done: i < (o.done || 0) })),
-});
+): Task => {
+  const task: Task = {
+    id,
+    title,
+    project,
+    assignee,
+    by,
+    priority,
+    due,
+    status: o.status || "To Do",
+    desc,
+    secs: o.secs || 0,
+    log: [
+      { t: "12/11/26, 09:00", txt: "Task assigned by " + by },
+      ...(o.log || []).map(([t, txt]) => ({ t, txt })),
+    ],
+    reports: [],
+    checklist: items.map((t, i) => ({ t, done: i < (o.done || 0) })),
+  };
+  if (o.ago !== undefined) {
+    const e = task.log[task.log.length - 1];
+    e.ts = Date.now() - o.ago * 60000;
+    e.t = stampOf(e.ts);
+  }
+  return task;
+};
 
 // ============================================================
 // 4. Mock / demo data
@@ -350,10 +413,10 @@ const makeTask = (
 const createInitialState = (): AppState => ({
   user: null,
   ws: null,
- 
+
   timer: { id: "TASK-1101", start: Date.now() },
   projects: [
-   
+
     {
       id: "P-1",
       name: "Billing Platform",
@@ -380,6 +443,24 @@ const createInitialState = (): AppState => ({
       team: "Gamma Web Team",
       members: ["Chloe Bennett", "Alex Morgan"],
       due: "2026-11-15",
+    },
+    {
+      id: "P-7",
+      name: "Vendor Portal",
+      desc: "Onboarding and invoicing portal for external vendors.",
+      lead: "ABC",
+      team: "",
+      members: [],
+      due: "2027-02-10",
+    },
+    {
+      id: "P-8",
+      name: "Inventory Management",
+      desc: "Stock tracking, reorder alerts and warehouse reports.",
+      lead: "ABC",
+      team: "",
+      members: [],
+      due: "2027-02-28",
     },
 
     {
@@ -411,7 +492,7 @@ const createInitialState = (): AppState => ({
     },
   ],
   tasks: [
-  
+
     makeTask(
       "TASK-1001",
       "Implement invoice export endpoint",
@@ -426,6 +507,7 @@ const createInitialState = (): AppState => ({
         status: "In Progress",
         secs: 4320,
         done: 2,
+        ago: 23,
         log: [
           ["15/11/26, 10:00", "Timer started"],
           ["15/11/26, 11:12", "Timer stopped, 01:12:00 logged"],
@@ -448,6 +530,7 @@ const createInitialState = (): AppState => ({
         status: "Review",
         secs: 7200,
         done: 3,
+        ago: 185,
         log: [
           ["14/11/26, 10:00", "Timer started"],
           ["14/11/26, 12:00", "Timer stopped, 02:00:00 logged"],
@@ -470,6 +553,7 @@ const createInitialState = (): AppState => ({
         status: "Completed",
         secs: 4500,
         done: 3,
+        ago: 1500,
         log: [
           ["12/11/26, 09:30", "Timer started"],
           ["12/11/26, 10:45", "Timer stopped, 01:15:00 logged"],
@@ -492,6 +576,7 @@ const createInitialState = (): AppState => ({
         status: "Stopped",
         secs: 1800,
         done: 1,
+        ago: 4200,
         log: [
           ["16/11/26, 14:00", "Timer started"],
           ["16/11/26, 14:30", "Timer stopped, 00:30:00 logged"],
@@ -509,6 +594,7 @@ const createInitialState = (): AppState => ({
       "Medium",
       "2026-11-28",
       ["List trigger events", "Configure FCM / APNs", "Test on TestFlight"],
+      { ago: 600 },
     ),
     makeTask(
       "TASK-1006",
@@ -522,6 +608,7 @@ const createInitialState = (): AppState => ({
       ["Create screen layout", "Add approve / reject actions"],
       {
         status: "Reassigned",
+        ago: 300,
         log: [["16/11/26, 11:00", "Reassigned from Divya Iyer to Karan Mehta"]],
       },
     ),
@@ -539,6 +626,7 @@ const createInitialState = (): AppState => ({
         status: "Completed",
         secs: 3600,
         done: 2,
+        ago: 7200,
         log: [
           ["25/10/26, 10:00", "Timer started"],
           ["25/10/26, 11:00", "Timer stopped, 01:00:00 logged"],
@@ -560,6 +648,7 @@ const createInitialState = (): AppState => ({
         status: "Completed",
         secs: 5400,
         done: 2,
+        ago: 5800,
         log: [
           ["30/10/26, 09:30", "Timer started"],
           ["30/10/26, 11:00", "Timer stopped, 01:30:00 logged"],
@@ -568,7 +657,7 @@ const createInitialState = (): AppState => ({
       },
     ),
 
-   
+
     makeTask(
       "TASK-1101",
       "Build onboarding checklist wizard",
@@ -583,6 +672,7 @@ const createInitialState = (): AppState => ({
         status: "In Progress",
         secs: 1260,
         done: 1,
+        ago: 42,
         log: [
           ["17/11/26, 10:30", "Timer started"],
           ["17/11/26, 10:51", "Timer stopped, 00:21:00 logged"],
@@ -605,6 +695,7 @@ const createInitialState = (): AppState => ({
         status: "Stopped",
         secs: 2100,
         done: 1,
+        ago: 95,
         log: [
           ["16/11/26, 14:00", "Timer started"],
           ["16/11/26, 14:35", "Timer stopped, 00:35:00 logged"],
@@ -626,6 +717,7 @@ const createInitialState = (): AppState => ({
         status: "Review",
         secs: 3600,
         done: 3,
+        ago: 130,
         log: [
           ["15/11/26, 10:00", "Timer started"],
           ["15/11/26, 11:00", "Timer stopped, 01:00:00 logged"],
@@ -644,6 +736,7 @@ const createInitialState = (): AppState => ({
       "Medium",
       "2026-11-27",
       ["Prepare cohort data", "Build chart component", "Add tooltips and legend"],
+      { ago: 12 },
     ),
     makeTask(
       "TASK-1105",
@@ -657,6 +750,7 @@ const createInitialState = (): AppState => ({
       ["Define funnel steps", "Build widget"],
       {
         status: "Reassigned",
+        ago: 260,
         log: [["17/11/26, 16:00", "Reassigned from Karan Mehta to ABC"]],
       },
     ),
@@ -674,6 +768,7 @@ const createInitialState = (): AppState => ({
         status: "Completed",
         secs: 4800,
         done: 3,
+        ago: 2900,
         log: [
           ["03/11/26, 10:00", "Timer started"],
           ["03/11/26, 11:20", "Timer stopped, 01:20:00 logged"],
@@ -695,6 +790,7 @@ const createInitialState = (): AppState => ({
         status: "Completed",
         secs: 2400,
         done: 2,
+        ago: 3100,
         log: [
           ["02/11/26, 10:00", "Timer started"],
           ["02/11/26, 10:40", "Timer stopped, 00:40:00 logged"],
@@ -775,7 +871,7 @@ interface WorkFlowDataSource {
 const localDataSource: WorkFlowDataSource = {
   loadInitialState: createInitialState,
 
- 
+
   readAccounts() {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.accounts) || "[]") as UserAccount[];
@@ -788,7 +884,7 @@ const localDataSource: WorkFlowDataSource = {
     try {
       localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(accounts));
     } catch {
-      
+
     }
   },
 
@@ -804,7 +900,7 @@ const localDataSource: WorkFlowDataSource = {
     try {
       localStorage.setItem(STORAGE_KEYS.sidebar, open ? "1" : "0");
     } catch {
-      
+
     }
   },
 };
@@ -992,7 +1088,7 @@ function Auth({ up }: { up: Updater }) {
     login(u);
   };
 
-  // The spotlight and dotted grid in the background follow the cursor
+  // The spotlight layers in the background follow the cursor
 
   const onMove = (e: ReactMouseEvent<HTMLDivElement>) => {
     const el = e.currentTarget,
@@ -1011,8 +1107,9 @@ function Auth({ up }: { up: Updater }) {
         <i className="curve c2" />
         <i className="curve c3" />
         <i className="curve c4" />
-        <i className="grid-dots" />
+        <i className="glow g2" />
         <i className="glow" />
+        <i className="glow g3" />
       </div>
       <div className="hero">
         <div className="logo" style={{ marginBottom: 10 }}>W</div>
@@ -1222,17 +1319,25 @@ function Auth({ up }: { up: Updater }) {
 }
 
 // ============================================================
-// 8. Chat and messaging (team group chat + direct messages)
+// 8. Chats (Chats = direct messages, Teams = team group chats, on one page)
 // ============================================================
 
-function Chat({ c, kind, chans }: { c: Ctx; kind: "chat" | "dm"; chans: string[] }) {
-  const [a, setA] = useState(chans[0] || ""),
+function Chat({ c, dmChans, teamChans }: { c: Ctx; dmChans: string[]; teamChans: string[] }) {
+  const [tab, setTab] = useState<"dm" | "team">("dm"),
+    [a, setA] = useState(dmChans[0] || ""),
     [x, setX] = useState(""),
     [file, setFile] = useState(""),
     [rec, setRec] = useState(false),
     [call, setCall] = useState<string | null>(null),
     [q, setQ] = useState("");
+  const chans = tab === "team" ? teamChans : dmChans;
   const list = c.s.msgs[a] || [];
+
+  const switchTab = (n: "dm" | "team") => {
+    setTab(n);
+    setQ("");
+    setA((n === "team" ? teamChans : dmChans)[0] || "");
+  };
 
   const send = (e: FormEvent) => {
     e.preventDefault();
@@ -1253,10 +1358,18 @@ function Chat({ c, kind, chans }: { c: Ctx; kind: "chat" | "dm"; chans: string[]
   return (
     <div className="card chat">
       <div className="chl">
+        <div className="ctabs">
+          <button type="button" className={tab === "dm" ? "on" : ""} onClick={() => switchTab("dm")}>
+            Chats
+          </button>
+          <button type="button" className={tab === "team" ? "on" : ""} onClick={() => switchTab("team")}>
+            Teams
+          </button>
+        </div>
         <div className="search">
           <span><Icon n="Search" s={18} /></span>
           <input
-            placeholder={kind === "dm" ? "Search user" : "Search team"}
+            placeholder={tab === "dm" ? "Search user" : "Search team"}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -1264,7 +1377,7 @@ function Chat({ c, kind, chans }: { c: Ctx; kind: "chat" | "dm"; chans: string[]
         {chans.filter((n) => n.toLowerCase().includes(q.toLowerCase())).map((n) => (
           <button key={n} className={a === n ? "on" : ""} onClick={() => setA(n)}>
             {n}
-            {kind === "dm" && <small className="mu"> · online</small>}
+            {tab === "dm" && <small className="mu"> · online</small>}
           </button>
         ))}
         {!chans.length && <span className="mu">Nothing here yet.</span>}
@@ -1423,7 +1536,7 @@ function Profile({ c }: { c: Ctx }) {
     apiService.saveAccounts(accs.map((x) => x.email === u.email ? { ...x, ...next } : x));
     const old = u.name;
     c.up((d) => {
-     
+
       if (name !== old) {
         d.projects.forEach((p) => {
           if (p.lead === old) {
@@ -1556,7 +1669,7 @@ function Profile({ c }: { c: Ctx }) {
 }
 
 // ============================================================
-// 10. Project list
+// 10. Project list, project details and create team
 // ============================================================
 
 interface ProjListProps {
@@ -1586,7 +1699,7 @@ function ProjList({ projects, prog, pstat, go, s }: ProjListProps) {
           />
         </div>
         <select value={st} onChange={(e) => setSt(e.target.value)}>
-          {["All", "Pending", "In Progress", "Completed"].map((x) => (
+          {["All", "To Do", "Pending", "In Progress", "Completed"].map((x) => (
             <option key={x}>{x}</option>
           ))}
         </select>
@@ -1613,7 +1726,7 @@ function ProjList({ projects, prog, pstat, go, s }: ProjListProps) {
                 <tr key={p.id} className="cl" onClick={() => go({ p: "projd", id: p.id })}>
                   <td>{p.id}</td>
                   <td><b>{p.name}</b></td>
-                  <td>{p.team}</td>
+                  <td>{p.team || "—"}</td>
                   <td>{p.lead}</td>
                   <td>{t.filter((x) => x.status === "Completed").length}/{t.length}</td>
                   <td style={{ minWidth: 100 }}><Bar v={prog(p)} /></td>
@@ -1627,6 +1740,180 @@ function ProjList({ projects, prog, pstat, go, s }: ProjListProps) {
         {!l.length && <p className="mu" style={{ padding: 14 }}>No projects.</p>}
       </div>
     </>
+  );
+}
+
+interface ProjectDetailProps {
+  x: Project;
+  s: AppState;
+  pr: number;
+  st: ProjectStatus;
+  table: ReactNode;
+  canCreate: boolean;
+  onCreate: () => void;
+}
+
+/** Info card + team card (members dropdown) + the project's task list */
+function ProjectDetail({ x, s, pr, st, table, canCreate, onCreate }: ProjectDetailProps) {
+  const [open, setOpen] = useState(true);
+  const others = x.members.filter((m) => m !== x.lead);
+  const taskCount = (m: string) =>
+    s.tasks.filter((t) => t.project === x.name && t.assignee === m).length;
+  const noTeam = !x.members.length;
+
+  return (
+    <div className="grid">
+      <div className="pdtop">
+        <div className="card pdc">
+          <div className="row sp">
+            <div>
+              <span className="mu">{x.id}</span>
+              <h2 style={{ margin: "2px 0" }}>{x.name}</h2>
+            </div>
+            <Pill v={st} />
+          </div>
+          <p className="pddesc">{x.desc}</p>
+          <div className="pdlead">
+            <span className="cap mu">TEAM LEAD</span>
+            <b>{x.lead}</b>
+          </div>
+          <div className="pdfoot">
+            <div className="pdprog">
+              <span className="cap mu">PROGRESS</span>
+              <div className="pdbar">
+                <Bar v={pr} />
+                <b>{pr}%</b>
+              </div>
+            </div>
+            <div className="pdmeta">
+              <span className="cap mu">DUE DATE</span>
+              <b>{x.due}</b>
+            </div>
+          </div>
+        </div>
+        <div className="card pdc">
+          <div className="pdhead">
+            <div>
+              <span className="cap mu">TEAM NAME</span>
+              <b className="pdtn">{x.team || "Not created yet"}</b>
+            </div>
+            {canCreate && noTeam && (
+              <button type="button" className="btn sm" onClick={onCreate}>
+                <Icon n="Plus" s={16} />
+                Create team
+              </button>
+            )}
+          </div>
+          <div className={"pddd" + (open ? " open" : "")}>
+            <button type="button" className="pdddh" onClick={() => setOpen(!open)}>
+              <span>Members ({others.length})</span>
+              <Icon n="ChevronRight" s={16} />
+            </button>
+            {open && (
+              <div className="pdmem">
+                {others.map((m) => {
+                  const n = taskCount(m);
+
+                  return (
+                    <div key={m} className="pdm">
+                      <span className="avatar">{ini(m)}</span>
+                      <span>{m}</span>
+                      <small className="mu">{n} {n === 1 ? "task" : "tasks"}</small>
+                    </div>
+                  );
+                })}
+                {!others.length && (
+                  <span className="mu pdnone">
+                    {noTeam ? "No team members yet. Create a team to add members." : "No other members yet."}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      {table}
+    </div>
+  );
+}
+
+interface CreateTeamProps {
+  x: Project;
+  users: { name: string; email: string }[];
+  onClose: () => void;
+  onCreate: (team: string, members: string[]) => void;
+}
+
+/** The team lead names the team and picks its members (same picker the Super Admin used) */
+function CreateTeamModal({ x, users, onClose, onCreate }: CreateTeamProps) {
+  const [name, setName] = useState("");
+  const [sel, setSel] = useState<string[]>([]);
+  const [q, setQ] = useState("");
+  const [err, setErr] = useState("");
+  const shown = users.filter((u) =>
+    (u.name + " " + u.email).toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <Modal title={"Create Team · " + x.name} onClose={onClose}>
+      <form
+        className="grid"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!name.trim()) {
+            return setErr("Enter a team name.");
+          }
+          if (!sel.length) {
+            return setErr("Select at least one team member.");
+          }
+          onCreate(name.trim(), sel);
+        }}
+      >
+        <label>
+          Team Name *
+          <input
+            required
+            placeholder="e.g. Alpha Engineering"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
+        <div className="mp">
+          <span className="cap">Select Team Members</span>
+          <div className="search" style={{ maxWidth: "none" }}>
+            <span><Icon n="Search" s={18} /></span>
+            <input
+              placeholder="Search email or user name"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <div className="mlist">
+            {shown.map((u) => (
+              <label key={u.email} className="mrow">
+                <span className="mn">
+                  <span className="avatar">{ini(u.name)}</span>
+                  <span><b>{u.name}</b><small className="mu">{u.email}</small></span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={sel.includes(u.name)}
+                  onChange={() => {
+                    setSel(sel.includes(u.name) ? sel.filter((n) => n !== u.name) : [...sel, u.name]);
+                    setErr("");
+                  }}
+                />
+              </label>
+            ))}
+            {!shown.length && <span className="mu">No matching users.</span>}
+          </div>
+          <div className="mfoot">
+            <span>{sel.length} selected</span>
+          </div>
+        </div>
+        {err && <div className="err">{err}</div>}
+        <button className="btn">Create Team</button>
+      </form>
+    </Modal>
   );
 }
 
@@ -1676,7 +1963,7 @@ function App() {
     };
   }, [dd]);
 
-  
+
   const up: Updater = (fn) =>
     setS((p) => {
       const d = JSON.parse(JSON.stringify(p)) as AppState;
@@ -1684,7 +1971,7 @@ function App() {
       return d;
     });
   const log = (d: AppState, id: string, txt: string) => {
-    d.tasks.find((t) => t.id === id)!.log.push({ t: now(), txt });
+    d.tasks.find((t) => t.id === id)!.log.push({ t: now(), txt, ts: Date.now() });
   };
   const go = (r: Route) => {
     setHist((h) => [...h, route]);
@@ -1710,8 +1997,10 @@ function App() {
     TM = ws === "tm";
   const c: Ctx = { s, up, go, u, toast: setToast };
 
-  
+
   const projects = s.projects.filter((p) => (TT ? p.lead === u.name : p.members.includes(u.name)));
+  /** projects whose team already exists (To Do projects have no team yet) */
+  const teamProjects = projects.filter((p) => p.members.length > 0);
   const pn = projects.map((p) => p.name);
   const tasks = s.tasks.filter((t) => (TT ? pn.includes(t.project) : t.assignee === u.name));
   const secs = (t: Task) =>
@@ -1723,6 +2012,9 @@ function App() {
       : 0;
   };
   const pstat = (p: Project): ProjectStatus => {
+    if (!p.members.length) {
+      return "To Do";
+    }
     const ts = s.tasks.filter((x) => x.project === p.name);
     if (ts.length && ts.every((x) => x.status === "Completed")) {
       return "Completed";
@@ -1743,7 +2035,7 @@ function App() {
     setToast("Switched to " + WS[w]);
   };
 
-  
+
   const stopTimer = (d: AppState, at?: number) => {
     if (d.timer) {
       const t = d.tasks.find((x) => x.id === d.timer!.id)!;
@@ -1764,7 +2056,7 @@ function App() {
       d.timer = { id: t.id, start: Date.now() };
     });
 
- 
+
   const markReview = (t: Task) => {
     up((d) => {
       if (d.timer && d.timer.id === t.id) {
@@ -1776,7 +2068,7 @@ function App() {
     setToast("Marked for review");
   };
 
-  
+
   const completeReviewed = (t: Task) => {
     up((d) => {
       const k = d.tasks.find((x) => x.id === t.id)!;
@@ -1787,14 +2079,13 @@ function App() {
     setToast("Task marked as completed");
   };
 
-  
+
   const nav: [PageId, IconName, string][] = [
     ["overview", "LayoutDashboard", "Overview"],
     ["project", "FolderKanban", "Project"],
     ["team", "UsersRound", "Team"],
     ["task", "ListTodo", "Task"],
-    ["chat", "MessagesSquare", "Team Chat"],
-    ["dm", "MessageCircle", "Direct Message"],
+    ["chat", "MessagesSquare", "Chats"],
     ["notif", "Bell", "Notification"],
   ];
 
@@ -1804,8 +2095,7 @@ function App() {
     team: "Teams",
     task: "Tasks",
     taskd: "Task Details",
-    chat: "Team Chat",
-    dm: "Direct Message",
+    chat: "Chats",
     notif: "Notifications",
     profile: "Profile",
   };
@@ -1844,7 +2134,7 @@ function App() {
     const [f, setF] = useState({
       title: "",
       desc: "",
-      project: (modal && modal.k === "assign" && modal.project) || projects[0]?.name || "",
+      project: (modal && modal.k === "assign" && modal.project) || teamProjects[0]?.name || "",
       assignee: "",
       priority: "Medium" as TaskPriority,
       due: "2026-11-30",
@@ -1862,8 +2152,8 @@ function App() {
 
     return (
       <Modal title="Assign Task" onClose={() => setModal(null)}>
-        {!projects.length
-          ? <p className="mu">There are no projects assigned to you yet.</p>
+        {!teamProjects.length
+          ? <p className="mu">There are no projects with a team yet. Create a team for a project first.</p>
           : (
             <form
               className="grid"
@@ -1876,7 +2166,7 @@ function App() {
                   (Math.max(1107, ...s.tasks.map((x) => parseInt(x.id.slice(5)) || 0)) + 1);
                 up((d) => {
                   d.tasks.unshift(
-                    makeTask(id, f.title, f.desc || "Assigned task.", f.project, as, u.name, f.priority, f.due, f.items),
+                    makeTask(id, f.title, f.desc || "Assigned task.", f.project, as, u.name, f.priority, f.due, f.items, { ago: 0 }),
                   );
                 });
                 setModal(null);
@@ -1907,7 +2197,7 @@ function App() {
                   value={f.project}
                   onChange={(e) => setF({ ...f, project: e.target.value, assignee: "" })}
                 >
-                  {projects.map((p) => <option key={p.id}>{p.name}</option>)}
+                  {teamProjects.map((p) => <option key={p.id}>{p.name}</option>)}
                 </select>
               </label>
               <label>
@@ -1978,7 +2268,7 @@ function App() {
     );
   };
 
- 
+
   const Reassign = ({ t }: { t: Task }) => {
     const [q, setQ] = useState("");
     const ms = mems(t.project).filter((m) =>
@@ -2025,7 +2315,7 @@ function App() {
     );
   };
 
- 
+
   const NoteModal = ({ m }: { m: NoteModalState }) => {
     const [x, setX] = useState("");
     const stop = m.kind === "stopsave";
@@ -2108,7 +2398,7 @@ function App() {
     </Modal>
   );
 
-  
+
   const Report = ({ t }: { t: Task }) => {
     const [f, setF] = useState({ cat: "Task Progress", desc: "", prog: "", block: "", act: "", att: "" });
 
@@ -2215,7 +2505,7 @@ function App() {
       </>
     );
 
-  
+
     if (TT) {
       const savedChanges = [...t.log].reverse().filter((l) =>
         l.txt.startsWith("Work update: ") || l.txt.startsWith("Completed: "));
@@ -2279,7 +2569,7 @@ function App() {
       );
     }
 
-  
+
     let ctrl: ReactNode;
     if (done) {
       ctrl = <span className="mu">Task completed.</span>;
@@ -2399,7 +2689,7 @@ function App() {
   const p = route.p;
   const reportTask = p === "taskd" && TT ? s.tasks.find((x) => x.id === route.id) : null;
 
-  
+
   if (p === "overview" && TT) {
     const cnt = (st: TaskStatus) => tasks.filter((t) => t.status === st).length;
     const reviewList = tasks.filter((t) => t.status === "Review");
@@ -2416,6 +2706,7 @@ function App() {
       ["UserPlus", "Assign Task", "Delegate to your team", () => setModal({ k: "assign" })],
       ["UsersRound", "View Teams", "See your teams", () => go({ p: "team" })],
     ];
+    const recent = [...tasks].sort((a, b) => lastTs(b) - lastTs(a));
 
     page = (
       <div className="grid">
@@ -2428,11 +2719,7 @@ function App() {
             <b>Project Progress</b>
             <div className="lo-scroll">
               {projects.map((x) => (
-                <div
-                  key={x.id}
-                  style={{ margin: "14px 0", cursor: "pointer" }}
-                  onClick={() => go({ p: "projd", id: x.id })}
-                >
+                <div key={x.id} className="lo-prog" onClick={() => go({ p: "projd", id: x.id })}>
                   <div className="row sp">
                     <span>{x.name}</span>
                     <span className="mu">{prog(x)}%</span>
@@ -2470,16 +2757,19 @@ function App() {
           </div>
         </div>
 
-        <div className="card">
+        <div className="card lo-recent">
           <b>Recent Activity</b>
-          <div className="lo-scroll" style={{ maxHeight: 300 }}>
-            {tasks.map((t) => {
+          <div className="lo-act-scroll">
+            {recent.map((t) => {
               const st = s.timer?.id === t.id ? "Started" : t.status;
 
               return (
                 <div key={t.id} className="lo-act" onClick={() => go({ p: "taskd", id: t.id })}>
                   <span><b>{t.assignee}</b> : {t.title}</span>
-                  <span className={"st " + st.split(" ")[0]}>{st}</span>
+                  <span className="lo-meta">
+                    <small className="mu">{timeAgo(lastTs(t))}</small>
+                    <span className={"st " + st.split(" ")[0]}>{st}</span>
+                  </span>
                 </div>
               );
             })}
@@ -2490,7 +2780,7 @@ function App() {
     );
   }
 
- 
+
   if (p === "overview" && TM) {
     const cnt = (st: TaskStatus) => tasks.filter((t) => t.status === st).length;
     const cur: Task | null = (s.timer && tasks.find((t) => t.id === s.timer!.id)) ||
@@ -2616,7 +2906,7 @@ function App() {
     );
   }
 
- 
+
   if (p === "project") {
     const ps = (st: ProjectStatus) => projects.filter((x) => pstat(x) === st).length;
 
@@ -2624,56 +2914,47 @@ function App() {
       <div className="grid">
         {statCards([
           ["Total Projects", projects.length, "FolderKanban"],
+          ["To Do", ps("To Do"), "ClipboardCheck"],
           ["In Progress", ps("In Progress"), "Zap"],
           ["Pending", ps("Pending"), "Clock"],
           ["Completed", ps("Completed"), "Check"],
-        ], "four")}
+        ], "five")}
         <ProjList projects={projects} prog={prog} pstat={pstat} go={go} s={s} />
       </div>
     );
   }
 
- 
+
   if (p === "projd") {
     const x = s.projects.find((y) => y.id === route.id);
 
     page = !x
       ? <div className="card">Not found.</div>
       : (
-        <div className="grid">
-          <div className="card">
-            <div className="row sp">
-              <div>
-                <span className="mu">{x.id}</span>
-                <h2 style={{ margin: "2px 0" }}>{x.name}</h2>
-              </div>
-              <Pill v={pstat(x)} />
-            </div>
-            <p>{x.desc}</p>
-            <div className="mu">Lead <b>{x.lead}</b> · Team {x.team} · Due {x.due}</div>
-            <div style={{ margin: "10px 0" }}><Bar v={prog(x)} /></div>
-            <div className="row">
-              {x.members.map((m) => (
-                <span key={m} className="row"><span className="avatar">{ini(m)}</span>{m}</span>
-              ))}
-            </div>
-          </div>
-          {taskTable(tasks.filter((t) => t.project === x.name), "mid")}
-        </div>
+        <ProjectDetail
+          key={x.id}
+          x={x}
+          s={s}
+          pr={prog(x)}
+          st={pstat(x)}
+          table={taskTable(tasks.filter((t) => t.project === x.name), "mid")}
+          canCreate={TT && x.lead === u.name}
+          onCreate={() => setModal({ k: "createteam", x })}
+        />
       );
   }
 
-  
+
   if (p === "team") {
-    const rows = projects.filter((x) =>
+    const rows = teamProjects.filter((x) =>
       (mf === "All" || x.team === mf) &&
         (x.team + x.name + x.lead + x.members.join(" ")).toLowerCase().includes(mq.toLowerCase()));
 
     page = (
       <div className="grid">
         {statCards([
-          ["Total Teams", projects.length, "UsersRound"],
-          ["Total Members", new Set(projects.flatMap((x) => [x.lead, ...x.members])).size, "User"],
+          ["Total Teams", teamProjects.length, "UsersRound"],
+          ["Total Members", new Set(teamProjects.flatMap((x) => [x.lead, ...x.members])).size, "User"],
           ["Active Tasks", tasks.filter((t) => t.status !== "Completed").length, "ListTodo"],
         ], "three")}
         <div className="toolbar">
@@ -2687,7 +2968,7 @@ function App() {
           </div>
           <select value={mf} onChange={(e) => setMf(e.target.value)}>
             <option value="All">All teams</option>
-            {[...new Set(projects.map((x) => x.team))].map((x) => <option key={x}>{x}</option>)}
+            {[...new Set(teamProjects.map((x) => x.team))].map((x) => <option key={x}>{x}</option>)}
           </select>
           {TT && (
             <button className="btn" onClick={() => setModal({ k: "assign" })}>
@@ -2739,7 +3020,7 @@ function App() {
     );
   }
 
-  
+
   if (p === "task") {
     const fl = tasks.filter((t) =>
       (flt === "All" || t.status === flt) &&
@@ -2796,16 +3077,15 @@ function App() {
     page = <Profile c={c} />;
   }
 
-  
-  if (p === "chat" || p === "dm") {
-    const chans = p === "chat"
-      ? [...new Set(projects.map((x) => slug(x.team)))]
-      : [...new Set(projects.flatMap((x) => [x.lead, ...x.members]))].filter((n) => n !== u.name);
 
-    page = <Chat key={p + ws} c={c} kind={p} chans={chans} />;
+  if (p === "chat") {
+    const teamChans = [...new Set(teamProjects.map((x) => slug(x.team)))];
+    const dmChans = [...new Set(teamProjects.flatMap((x) => [x.lead, ...x.members]))].filter((n) => n !== u.name);
+
+    page = <Chat key={ws} c={c} dmChans={dmChans} teamChans={teamChans} />;
   }
 
-  
+
   if (p === "notif") {
     page = (
       <div className="card" style={{ padding: 0 }}>
@@ -2866,7 +3146,7 @@ function App() {
     );
   }
 
-  
+
 
   return (
     <div className={"shell" + (side ? " open" : "")}>
@@ -2985,6 +3265,26 @@ function App() {
       {modal?.k === "note" && <NoteModal m={modal} />}
       {modal?.k === "team" && teamModal(modal.x)}
       {modal?.k === "report" && <Report t={modal.t} />}
+      {modal?.k === "createteam" && (
+        <CreateTeamModal
+          x={modal.x}
+          users={DIRECTORY.filter((n) => n !== modal.x.lead && n !== u.name).map((n) => ({
+            name: n,
+            email: emailOf(n),
+          }))}
+          onClose={() => setModal(null)}
+          onCreate={(team, members) => {
+            const id = modal.x.id;
+            up((d) => {
+              const k = d.projects.find((y) => y.id === id)!;
+              k.team = team;
+              k.members = members;
+            });
+            setModal(null);
+            setToast("Team created");
+          }}
+        />
+      )}
       <ToastHost />
     </div>
   );
